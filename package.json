@@ -1,0 +1,70 @@
+{
+  "name": "multi-tenant-firm-service",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-tenant firm & employee management service with a tenant-scoped realtime channel",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "prestart": "node scripts/check-node.mjs && node scripts/ensure-env.mjs && npm run build",
+    "start": "node dist/server/index.js",
+    "build": "node scripts/clean.mjs && npm run build:server && npm run build:web",
+    "build:server": "tsc -p tsconfig.build.json",
+    "build:web": "vite build",
+    "dev": "node scripts/check-node.mjs && node scripts/ensure-env.mjs && concurrently -k -n api,web -c blue,magenta \"tsx watch src/server/index.ts\" \"vite\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:reset": "node scripts/db-reset.mjs"
+  },
+  "dependencies": {
+    "@asteasolutions/zod-to-openapi": "9.1.0",
+    "@tanstack/react-query": "5.103.2",
+    "better-sqlite3": "12.11.1",
+    "express": "5.2.1",
+    "jsonwebtoken": "9.0.3",
+    "pino": "10.3.1",
+    "pino-http": "11.0.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-router": "7.18.4",
+    "socket.io": "4.8.3",
+    "socket.io-client": "4.8.3",
+    "swagger-ui-express": "5.0.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/express": "5.0.6",
+    "@types/jsonwebtoken": "9.0.10",
+    "@types/node": "24.13.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/supertest": "6.0.3",
+    "@types/swagger-ui-express": "4.1.8",
+    "@vitejs/plugin-react": "5.2.0",
+    "concurrently": "9.2.4",
+    "eslint": "10.11.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.12.0",
+    "prettier": "3.9.9",
+    "supertest": "7.3.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vite": "7.3.6",
+    "vitest": "4.0.18"
+  },
+  "allowScripts": {
+    "better-sqlite3": true,
+    "esbuild": true,
+    "@scarf/scarf": false
+  }
+}
