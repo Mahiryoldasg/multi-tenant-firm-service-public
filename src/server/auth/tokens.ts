@@ -35,8 +35,11 @@ export function verifyToken(token: string, secret: string): JwtPayload | undefin
     // Pinned, so a token cannot pick its own algorithm (`none`, or another HMAC with our secret).
     payload = jwt.verify(token, secret, { algorithms: ['HS256'] });
   } catch (err) {
-    // Also covers TokenExpiredError and NotBeforeError. Anything else is a bug and must surface.
-    if (err instanceof jwt.JsonWebTokenError) return undefined;
+    // JsonWebTokenError also covers TokenExpiredError and NotBeforeError. jsonwebtoken does not wrap
+    // one parse failure: with `typ: 'JWT'` in the header, jws JSON-parses the payload before any
+    // signature check, so a crafted non-JSON payload throws a raw SyntaxError (F-04). With string
+    // arguments nothing else in `verify` throws a SyntaxError; any other error must surface.
+    if (err instanceof jwt.JsonWebTokenError || err instanceof SyntaxError) return undefined;
     throw err;
   }
   return typeof payload === 'string' ? undefined : payload;

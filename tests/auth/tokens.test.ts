@@ -108,6 +108,12 @@ describe('verifyToken', () => {
     },
     { label: 'not a JWT at all', token: () => 'not.a.jwt' },
     {
+      // jws JSON-parses the payload when the header says `typ: 'JWT'`, before any signature check.
+      label: 'with typ JWT and a non-JSON payload',
+      token: () =>
+        `${base64url({ alg: 'HS256', typ: 'JWT' })}.${Buffer.from('not json').toString('base64url')}.sig`,
+    },
+    {
       label: 'a string payload signed with the right secret',
       token: () => jwt.sign('just-a-string', OPTIONS.secret, { algorithm: 'HS256' }),
     },

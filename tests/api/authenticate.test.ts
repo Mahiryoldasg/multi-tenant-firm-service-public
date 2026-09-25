@@ -63,6 +63,12 @@ describe('authenticate rejects with 401', () => {
     },
     { label: 'a malformed token', authorization: () => 'Bearer not.a.jwt' },
     {
+      // Not a 500: jws JSON-parses this payload before any signature check (F-04).
+      label: 'a token with typ JWT and a non-JSON payload',
+      authorization: () =>
+        `Bearer ${base64url({ alg: 'HS256', typ: 'JWT' })}.${Buffer.from('not json').toString('base64url')}.sig`,
+    },
+    {
       label: 'a user token signed with another secret',
       authorization: () =>
         `Bearer ${signUserToken(firstAdmin(), { secret: 'other-secret', ttlSeconds: 60 })}`,
