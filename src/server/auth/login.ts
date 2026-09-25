@@ -7,7 +7,8 @@ import { HttpError } from '../http/errors.ts';
 import { findActiveUserByEmail } from '../modules/platform/users.ts';
 import { normalizeEmail } from './email.ts';
 import { hashPassword, verifyPassword } from './password.ts';
-import { type Role, signUserToken } from './tokens.ts';
+import { signUserToken } from './tokens.ts';
+import { toUserResponse, type UserResponse } from './user-response.ts';
 
 const INVALID_BODY_MESSAGE = 'İstek gövdesi bir JSON nesnesi olmalı.';
 const EMAIL_REQUIRED_MESSAGE = 'E-posta zorunludur.';
@@ -31,7 +32,7 @@ const loginBodySchema = z.object(
 
 interface LoginResponse {
   token: string;
-  user: { id: string; email: string; role: Role; firmId?: string };
+  user: UserResponse;
 }
 
 export interface LoginDeps {
@@ -64,12 +65,7 @@ export function createLoginHandler({ db, config }: LoginDeps): RequestHandler {
         secret: config.jwtSecret,
         ttlSeconds: config.userTokenTtlSeconds,
       }),
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        ...(user.firmId === null ? {} : { firmId: user.firmId }),
-      },
+      user: toUserResponse(user),
     };
     res.json(body);
   };

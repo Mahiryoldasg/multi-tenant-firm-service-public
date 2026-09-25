@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import { createLoginHandler } from './auth/login.ts';
+import { meHandler } from './auth/me.ts';
 import type { AppConfig } from './config.ts';
 import { createAuthenticate } from './http/authenticate.ts';
 import { errorHandler, notFoundHandler } from './http/error-handler.ts';
@@ -37,6 +38,7 @@ export function createApp({ logger, db, config }: AppDeps): express.Express {
   // including unknown paths (401 before 404).
   app.post('/api/auth/login', createLoginHandler({ db, config }));
   app.use('/api', createAuthenticate({ db, config }));
+  app.get('/api/auth/me', meHandler);
 
   // Control UI (production build only). In development Vite serves the UI and proxies API calls.
   if (existsSync(WEB_DIR)) {
