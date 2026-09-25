@@ -1,24 +1,34 @@
+import type Database from 'better-sqlite3';
 import type { Express as App } from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import { createTestApp } from '../helpers/app.ts';
+import { userTokenFor } from '../helpers/auth.ts';
+import { TEST_SEED } from '../helpers/db.ts';
 import { createCapturingLogger } from '../helpers/log.ts';
 
 async function createLoggedApp() {
   const { logger, output } = createCapturingLogger();
-  const { app } = await createTestApp({ logger });
-  return { app, output };
+  const { app, db } = await createTestApp({ logger });
+  return { app, db, output };
 }
 
 describe('unknown routes and methods', () => {
   it.each([
-    { label: 'GET /api/nope', send: (app: App) => request(app).get('/api/nope') },
+    {
+      // Under /api authentication runs first, so an unknown path needs a valid token to reach 404.
+      label: 'GET /api/nope with a valid token',
+      send: (app: App, db: Database.Database) =>
+        request(app)
+          .get('/api/nope')
+          .set('Authorization', `Bearer ${userTokenFor(db, TEST_SEED.firms[0].adminEmail)}`),
+    },
     { label: 'POST /nope', send: (app: App) => request(app).post('/nope') },
     { label: 'DELETE /health (no 405)', send: (app: App) => request(app).delete('/health') },
   ])('$label answers the 404 envelope as JSON', async ({ send }) => {
-    const { app } = await createLoggedApp();
+    const { app, db } = await createLoggedApp();
 
-    const res = await send(app);
+    const res = await send(app, db);
 
     expect(res.status).toBe(404);
     expect(res.type).toBe('application/json');

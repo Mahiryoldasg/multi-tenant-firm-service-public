@@ -5,6 +5,7 @@ import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { verifyPassword } from '../../src/server/auth/password.ts';
 import { createTestApp, TEST_CONFIG } from '../helpers/app.ts';
+import { userTokenFor } from '../helpers/auth.ts';
 import { TEST_SEED } from '../helpers/db.ts';
 import { createCapturingLogger } from '../helpers/log.ts';
 
@@ -165,8 +166,17 @@ describe('POST /api/auth/login failure', () => {
     expect(res.body).toEqual({ error: { code: 'VALIDATION_ERROR', message: expect.any(String) } });
   });
 
-  it('answers GET with the 404 envelope', async () => {
+  it('answers GET without a token with 401, since only POST is public', async () => {
     const res = await request(app).get(LOGIN_PATH);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: { code: 'UNAUTHORIZED', message: expect.any(String) } });
+  });
+
+  it('answers GET with a valid token with the 404 envelope', async () => {
+    const res = await request(app)
+      .get(LOGIN_PATH)
+      .set('Authorization', `Bearer ${userTokenFor(db, FIRST_ADMIN.email)}`);
 
     expect(res.status).toBe(404);
     expect(res.body).toEqual({ error: { code: 'NOT_FOUND', message: expect.any(String) } });
