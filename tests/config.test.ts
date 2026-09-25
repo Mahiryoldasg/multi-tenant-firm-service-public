@@ -72,3 +72,30 @@ describe('loadConfig seed values', () => {
     expect(seed.firms[0].adminEmail).toBe('admin@acme.local');
   });
 });
+
+describe('loadConfig user token lifetime', () => {
+  it.each([undefined, '', '  '])('defaults to 12 hours for %j', (value) => {
+    expect(loadConfig({ ...VALID_ENV, USER_TOKEN_TTL: value }).userTokenTtlSeconds).toBe(43200);
+  });
+
+  it('reads 12 hours from .env.example', () => {
+    const example = parseEnv(readFileSync(new URL('../.env.example', import.meta.url), 'utf8'));
+
+    expect(loadConfig({ ...example, JWT_SECRET: 'test-secret' }).userTokenTtlSeconds).toBe(43200);
+  });
+
+  it.each([
+    { value: '90s', seconds: 90 },
+    { value: '30m', seconds: 1800 },
+    { value: '12h', seconds: 43200 },
+    { value: '7d', seconds: 604800 },
+    { value: ' 12h ', seconds: 43200 },
+  ])('converts "$value" to $seconds seconds', ({ value, seconds }) => {
+    expect(loadConfig({ ...VALID_ENV, USER_TOKEN_TTL: value }).userTokenTtlSeconds).toBe(seconds);
+  });
+
+  // "12" is rejected on purpose: jsonwebtoken would read it as 12 milliseconds.
+  it.each(['abc', '12', '0h', '-1h', '1.5h', '12 h', '12H'])('rejects "%s" by name', (value) => {
+    expect(() => loadConfig({ ...VALID_ENV, USER_TOKEN_TTL: value })).toThrow('USER_TOKEN_TTL');
+  });
+});
