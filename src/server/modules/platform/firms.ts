@@ -1,6 +1,7 @@
-import type Database from 'better-sqlite3';
+import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { insertUser } from './users.ts';
+import { normalizeEmail } from '../../auth/email.ts';
+import { findActiveUserByEmail, insertUser } from './users.ts';
 
 /** A firm as `GET /api/firms` lists it. */
 export interface FirmSummary {
@@ -57,4 +58,35 @@ export function insertFirmWithAdmin(
     passwordHash: adminPasswordHash,
   });
   return { firm: { id: firmId, name }, admin: { id: adminId, email: adminEmail } };
+}
+
+/** What `createFirmWithAdmin` returns when an active user already has the admin email. */
+export const EMAIL_TAKEN = 'email_taken';
+
+/**
+ * Creates a firm with its first firm admin in one `BEGIN IMMEDIATE` transaction. When an active user
+ * already has the admin email it returns `EMAIL_TAKEN` and leaves no firm behind.
+ */
+export function createFirmWithAdmin(
+  db: Database.Database,
+  now: string,
+  input: NewFirmWithAdmin,
+): CreatedFirm | typeof EMAIL_TAKEN {
+  const create = db.transaction((): CreatedFirm | typeof EMAIL_TAKEN => {
+    // Under the write lock, so no other connection can take the email between check and insert.
+    if (findActiveUserByEmail(db, normalizeEmail(input.adminEmail))) return EMAIL_TAKEN;
+    return insertFirmWithAdmin(db, now, input);
+  });
+
+  try {
+    return create.immediate();
+  } catch (error) {
+    // The unique index is the safety net for a clash the pre-check missed, such as an active user of
+    // a firm whose users were never cascaded. Mapped only here, after the rollback: returning from
+    // inside the transaction function would commit the firm row.
+    if (error instanceof Database.SqliteError && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return EMAIL_TAKEN;
+    }
+    throw error;
+  }
 }
