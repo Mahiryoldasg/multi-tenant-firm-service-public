@@ -5,7 +5,9 @@ import { hashPassword, verifyPassword } from '../../src/server/auth/password.ts'
 import {
   createFirmWithAdmin,
   EMAIL_TAKEN,
+  findActiveFirmById,
   listActiveFirms,
+  renameFirm,
 } from '../../src/server/modules/platform/firms.ts';
 import { createSeededDatabase } from '../helpers/db.ts';
 
@@ -122,5 +124,42 @@ describe('createFirmWithAdmin', () => {
 
     expect(result).toBe(EMAIL_TAKEN);
     expect(rowCounts()).toEqual(before);
+  });
+});
+
+describe('findActiveFirmById', () => {
+  it('finds an active firm with its id and name only', () => {
+    const id = insertFirm('Old Firm', EARLIER);
+
+    expect(findActiveFirmById(db, id)).toEqual({ id, name: 'Old Firm' });
+  });
+
+  it('finds nothing for an unknown id or a soft-deleted firm', () => {
+    const deletedId = insertFirm('Deleted Firm', EARLIER, DELETED_AT);
+
+    expect(findActiveFirmById(db, randomUUID())).toBeUndefined();
+    expect(findActiveFirmById(db, deletedId)).toBeUndefined();
+  });
+});
+
+describe('renameFirm', () => {
+  const NOW = '2026-09-26T09:30:00.000Z';
+
+  function firmRow(id: string) {
+    return db.prepare('SELECT name, created_at, updated_at FROM firms WHERE id = ?').get(id);
+  }
+
+  it('renames an active firm, moves updated_at only, and returns the firm', () => {
+    const id = insertFirm('Old Firm', EARLIER);
+
+    expect(renameFirm(db, NOW, id, 'New Name')).toEqual({ id, name: 'New Name' });
+    expect(firmRow(id)).toEqual({ name: 'New Name', created_at: EARLIER, updated_at: NOW });
+  });
+
+  it('leaves a soft-deleted firm unchanged and returns nothing', () => {
+    const id = insertFirm('Deleted Firm', EARLIER, DELETED_AT);
+
+    expect(renameFirm(db, NOW, id, 'New Name')).toBeUndefined();
+    expect(firmRow(id)).toEqual({ name: 'Deleted Firm', created_at: EARLIER, updated_at: EARLIER });
   });
 });

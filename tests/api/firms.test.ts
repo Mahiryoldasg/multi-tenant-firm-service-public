@@ -75,6 +75,25 @@ function createFirm(body: unknown, token = platformAdminToken()) {
   return body === undefined ? req : req.send(body as object);
 }
 
+function patchFirm(id: string, body: unknown, token = platformAdminToken()) {
+  const req = request(app).patch(`${FIRMS_PATH}/${id}`).set('Authorization', `Bearer ${token}`);
+  return body === undefined ? req : req.send(body as object);
+}
+
+interface FirmRow {
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function firmRow(id: string): FirmRow | undefined {
+  return db
+    .prepare<{ id: string }, FirmRow>(
+      'SELECT name, created_at, updated_at FROM firms WHERE id = @id',
+    )
+    .get({ id });
+}
+
 describe('firm routes guard', () => {
   it('answers 401 without a token', async () => {
     const res = await request(app).get(FIRMS_PATH);
@@ -363,5 +382,127 @@ describe('POST /api/firms logging', () => {
     expect(output()).toContain('"statusCode":400');
     expect(output()).toContain('"statusCode":409');
     expect(output()).not.toContain('secret-for-');
+  });
+});
+
+describe('PATCH /api/firms/:id success', () => {
+  const OLD_TIME = '2026-01-01T00:00:00.000Z';
+
+  beforeEach(() => {
+    // An old creation time, so the test can see updated_at move and created_at stay.
+    db.prepare(
+      "UPDATE firms SET created_at = @at, updated_at = @at WHERE name = 'First Test Firm'",
+    ).run({ at: OLD_TIME });
+  });
+
+  it('answers 200 with exactly the renamed firm, trimmed', async () => {
+    const id = firmId('First Test Firm');
+
+    const res = await patchFirm(id, { name: '  Renamed Firm  ', id: 'other', createdAt: 'x' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ firm: { id, name: 'Renamed Firm' } });
+    expect(firmRow(id)).toEqual({
+      name: 'Renamed Firm',
+      created_at: OLD_TIME,
+      updated_at: expect.stringMatching(ISO_UTC),
+    });
+    expect(firmRow(id)?.updated_at).not.toBe(OLD_TIME);
+  });
+
+  it('shows the new name in the list', async () => {
+    const id = firmId('First Test Firm');
+    await patchFirm(id, { name: 'Renamed Firm' }).expect(200);
+
+    const res = await request(app)
+      .get(FIRMS_PATH)
+      .set('Authorization', `Bearer ${platformAdminToken()}`);
+
+    expect(res.body.firms[0]).toEqual({ id, name: 'Renamed Firm', createdAt: OLD_TIME });
+  });
+
+  it('accepts the current name', async () => {
+    const id = firmId('First Test Firm');
+
+    const res = await patchFirm(id, { name: 'First Test Firm' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ firm: { id, name: 'First Test Firm' } });
+  });
+});
+
+describe('PATCH /api/firms/:id failure', () => {
+  it('answers 401 without a token', async () => {
+    const res = await request(app)
+      .patch(`${FIRMS_PATH}/${firmId('First Test Firm')}`)
+      .send({ name: 'Renamed Firm' });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(UNAUTHORIZED);
+  });
+
+  it.each(['firm_admin', 'member'] as const)(
+    'answers 403 to a %s, even for an unknown id with an invalid body',
+    async (role) => {
+      const token = tenantToken(role);
+
+      const own = await patchFirm(firmId('First Test Firm'), { name: 'Renamed Firm' }, token);
+      const unknown = await patchFirm(randomUUID(), {}, token);
+
+      expect(own.status).toBe(403);
+      expect(own.body).toEqual(FORBIDDEN);
+      expect(unknown.status).toBe(403);
+      expect(unknown.body).toEqual(FORBIDDEN);
+      expect(firmRow(firmId('First Test Firm'))?.name).toBe('First Test Firm');
+    },
+  );
+
+  it.each([
+    { label: 'an unknown id', id: () => randomUUID() },
+    { label: 'an id that is not a UUID', id: () => 'not-a-firm' },
+    {
+      label: 'a soft-deleted firm',
+      id: () => {
+        softDeleteFirm('First Test Firm');
+        return firmId('First Test Firm');
+      },
+    },
+  ])('answers 404 for $label', async ({ id }) => {
+    const res = await patchFirm(id(), { name: 'Renamed Firm' });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(NOT_FOUND);
+  });
+
+  it('answers 404, not 400, for an unknown id with an empty body', async () => {
+    const res = await patchFirm(randomUUID(), {});
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(NOT_FOUND);
+  });
+
+  it('answers a malformed percent-encoded id with 404, after the role check', async () => {
+    const asAdmin = await patchFirm('%E0', { name: 'Renamed Firm' });
+    const asTenant = await patchFirm('%E0', { name: 'Renamed Firm' }, tenantToken('firm_admin'));
+
+    expect(asAdmin.status).toBe(404);
+    expect(asAdmin.body).toEqual(NOT_FOUND);
+    expect(asTenant.status).toBe(403);
+    expect(asTenant.body).toEqual(FORBIDDEN);
+  });
+
+  it.each([
+    { label: 'an empty body', body: {} },
+    { label: 'a blank name', body: { name: '   ' } },
+    { label: 'a non-string name', body: { name: 42 } },
+    { label: 'no body', body: undefined },
+  ])('answers 400 VALIDATION_ERROR for $label and keeps the name', async ({ body }) => {
+    const id = firmId('First Test Firm');
+
+    const res = await patchFirm(id, body);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual(VALIDATION_ERROR);
+    expect(firmRow(id)?.name).toBe('First Test Firm');
   });
 });

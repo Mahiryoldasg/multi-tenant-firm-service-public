@@ -32,9 +32,15 @@ export interface NewFirmWithAdmin {
   adminPasswordHash: string;
 }
 
+/** A firm as the create and rename responses return it. */
+export interface Firm {
+  id: string;
+  name: string;
+}
+
 /** A created firm and its first admin, in the shape `POST /api/firms` returns. */
 export interface CreatedFirm {
-  firm: { id: string; name: string };
+  firm: Firm;
   admin: { id: string; email: string };
 }
 
@@ -89,4 +95,29 @@ export function createFirmWithAdmin(
     }
     throw error;
   }
+}
+
+/** Finds the firm with this id, unless it is soft-deleted. */
+export function findActiveFirmById(db: Database.Database, id: string): Firm | undefined {
+  return db
+    .prepare<{ id: string }, Firm>(
+      'SELECT id, name FROM firms WHERE id = @id AND deleted_at IS NULL',
+    )
+    .get({ id });
+}
+
+/** Renames an active firm and returns it; a missing or soft-deleted firm is left alone. */
+export function renameFirm(
+  db: Database.Database,
+  now: string,
+  id: string,
+  name: string,
+): Firm | undefined {
+  return db
+    .prepare<{ id: string; name: string; now: string }, Firm>(
+      `UPDATE firms SET name = @name, updated_at = @now
+        WHERE id = @id AND deleted_at IS NULL
+        RETURNING id, name`,
+    )
+    .get({ id, name, now });
 }
