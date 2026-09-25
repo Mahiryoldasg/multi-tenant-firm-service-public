@@ -22,8 +22,9 @@ export const errorHandler: ErrorRequestHandler = (err: unknown, req, res, next) 
     return;
   }
 
-  if (isBodyParserError(err)) {
-    // Not logged: the error's `body` holds the raw request text, which can contain a password.
+  if (isClientError(err)) {
+    // Not logged: a body-parser error's `body` holds the raw request text, which can contain a
+    // password.
     sendError(res, 400, 'VALIDATION_ERROR', UNREADABLE_BODY_MESSAGE);
     return;
   }
@@ -42,11 +43,13 @@ function sendError(
   res.status(status).json({ error: { code, message } });
 }
 
-// body-parser (behind express.json) tags its client errors with a `type` such as
-// `entity.parse.failed` or `entity.too.large`. The contract has no 413 or 415, and its 400 covers
-// a broken body, so all of them become 400.
-function isBodyParserError(err: unknown): boolean {
+// http-errors client errors: a 4xx `status` with `expose: true`. body-parser (behind express.json)
+// raises only these, from malformed JSON and oversized bodies to a corrupt compressed body, which
+// has no `type`. The contract has no 413 or 415, and its 400 covers a broken body, so all of them
+// become 400. Express's router URIError for a malformed percent-encoded param has `status: 400` but
+// no `expose`, so it stays a 500 here; the features that add `:id` routes decide its answer.
+function isClientError(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
-  const { type, status } = err as { type?: unknown; status?: unknown };
-  return typeof type === 'string' && typeof status === 'number' && status >= 400 && status < 500;
+  const { status, expose } = err as { status?: unknown; expose?: unknown };
+  return typeof status === 'number' && status >= 400 && status < 500 && expose === true;
 }

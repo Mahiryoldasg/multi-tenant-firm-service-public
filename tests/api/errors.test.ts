@@ -41,6 +41,21 @@ describe('unreadable request bodies', () => {
     expect(output()).not.toContain('leak-me-123');
   });
 
+  it('answers a corrupt compressed body with 400, not an unhandled 500', async () => {
+    const { app, output } = await createLoggedApp();
+
+    const res = await request(app)
+      .post('/api/anything')
+      .set('Content-Type', 'application/json')
+      .set('Content-Encoding', 'gzip')
+      .send('{"email":"a@b.test"}');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: { code: 'VALIDATION_ERROR', message: expect.any(String) } });
+    expect(output()).toContain('"statusCode":400');
+    expect(output()).not.toContain('Unhandled error');
+  });
+
   it('answers a JSON body over the 100 kB limit with 400, not 413', async () => {
     const { app } = await createLoggedApp();
 
