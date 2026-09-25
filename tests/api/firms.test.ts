@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { insertUser } from '../../src/server/modules/platform/users.ts';
 import { createTestApp, TEST_CONFIG } from '../helpers/app.ts';
 import { userTokenFor } from '../helpers/auth.ts';
 import { TEST_SEED } from '../helpers/db.ts';
@@ -505,4 +506,133 @@ describe('PATCH /api/firms/:id failure', () => {
     expect(res.body).toEqual(VALIDATION_ERROR);
     expect(firmRow(id)?.name).toBe('First Test Firm');
   });
+});
+
+describe('DELETE /api/firms/:id', () => {
+  const EARLIER_DELETION = '2026-02-01T00:00:00.000Z';
+
+  function deleteFirm(id: string, token = platformAdminToken()) {
+    return request(app).delete(`${FIRMS_PATH}/${id}`).set('Authorization', `Bearer ${token}`);
+  }
+
+  function deletedAt(table: 'firms' | 'users', where: string): (string | null)[] {
+    return db
+      .prepare<[], { deleted_at: string | null }>(`SELECT deleted_at FROM ${table} WHERE ${where}`)
+      .all()
+      .map((row) => row.deleted_at);
+  }
+
+  function addFirstFirmUser(email: string): void {
+    insertUser(db, DELETED_AT, {
+      firmId: firmId('First Test Firm'),
+      role: 'member',
+      email,
+      passwordHash: 'unused',
+    });
+  }
+
+  it('answers 204 with no body and drops the firm from the list', async () => {
+    const res = await deleteFirm(firmId('First Test Firm'));
+    const list = await request(app)
+      .get(FIRMS_PATH)
+      .set('Authorization', `Bearer ${platformAdminToken()}`);
+
+    expect(res.status).toBe(204);
+    expect(res.text).toBe('');
+    expect(list.body.firms.map((firm: { name: string }) => firm.name)).toEqual([
+      'Second Test Firm',
+    ]);
+  });
+
+  it('soft-deletes the firm and its active users at one time, and nothing else', async () => {
+    addFirstFirmUser('member@first.test');
+    addFirstFirmUser('gone@first.test');
+    db.prepare("UPDATE users SET deleted_at = @at WHERE email_normalized = 'gone@first.test'").run({
+      at: EARLIER_DELETION,
+    });
+
+    await deleteFirm(firmId('First Test Firm')).expect(204);
+
+    const [firmDeletedAt] = deletedAt('firms', "name = 'First Test Firm'");
+    expect(firmDeletedAt).toMatch(ISO_UTC);
+    expect(
+      db.prepare("SELECT updated_at FROM firms WHERE name = 'First Test Firm'").pluck().get(),
+    ).toBe(firmDeletedAt);
+    expect(
+      deletedAt('users', "email_normalized IN ('boss@first.test', 'member@first.test')"),
+    ).toEqual([firmDeletedAt, firmDeletedAt]);
+    expect(deletedAt('users', "email_normalized = 'gone@first.test'")).toEqual([EARLIER_DELETION]);
+    expect(deletedAt('firms', "name = 'Second Test Firm'")).toEqual([null]);
+    expect(
+      deletedAt('users', "email_normalized IN ('boss@second.test', 'root@platform.test')"),
+    ).toEqual([null, null]);
+  });
+
+  it("invalidates the deleted firm's users and frees their emails", async () => {
+    const oldToken = userTokenFor(db, FIRST_ADMIN_EMAIL);
+
+    await deleteFirm(firmId('First Test Firm')).expect(204);
+    const me = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${oldToken}`);
+    const login = await request(app)
+      .post('/api/auth/login')
+      .send({ email: FIRST_ADMIN_EMAIL, password: TEST_SEED.firms[0].adminPassword });
+    const reused = await createFirm({ ...NEW_FIRM, adminEmail: FIRST_ADMIN_EMAIL });
+    const otherFirm = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${userTokenFor(db, 'boss@second.test')}`);
+
+    expect(me.status).toBe(401);
+    expect(me.body).toEqual(UNAUTHORIZED);
+    expect(login.status).toBe(401);
+    expect(reused.status).toBe(201);
+    expect(otherFirm.status).toBe(200);
+  });
+
+  it('answers 404 to a repeated delete and to a rename after it', async () => {
+    const id = firmId('First Test Firm');
+    await deleteFirm(id).expect(204);
+
+    const again = await deleteFirm(id);
+    const rename = await patchFirm(id, { name: 'Renamed Firm' });
+
+    expect(again.status).toBe(404);
+    expect(again.body).toEqual(NOT_FOUND);
+    expect(rename.status).toBe(404);
+    expect(rename.body).toEqual(NOT_FOUND);
+  });
+
+  it.each([
+    { label: 'an unknown id', id: () => randomUUID() },
+    { label: 'an id that is not a UUID', id: () => 'not-a-firm' },
+    { label: 'a malformed percent-encoded id', id: () => '%E0' },
+  ])('answers 404 for $label', async ({ id }) => {
+    const res = await deleteFirm(id());
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(NOT_FOUND);
+    expect(firmCount()).toBe(2);
+  });
+
+  it('answers 401 without a token', async () => {
+    const res = await request(app).delete(`${FIRMS_PATH}/${firmId('First Test Firm')}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(UNAUTHORIZED);
+  });
+
+  it.each(['firm_admin', 'member'] as const)(
+    'answers 403 to a %s, even for their own firm or an unknown id',
+    async (role) => {
+      const token = tenantToken(role);
+
+      const own = await deleteFirm(firmId('First Test Firm'), token);
+      const unknown = await deleteFirm(randomUUID(), token);
+
+      expect(own.status).toBe(403);
+      expect(own.body).toEqual(FORBIDDEN);
+      expect(unknown.status).toBe(403);
+      expect(unknown.body).toEqual(FORBIDDEN);
+      expect(deletedAt('firms', "name = 'First Test Firm'")).toEqual([null]);
+    },
+  );
 });

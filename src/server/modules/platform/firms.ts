@@ -121,3 +121,27 @@ export function renameFirm(
     )
     .get({ id, name, now });
 }
+
+/**
+ * Soft-deletes an active firm and all its active users in one `BEGIN IMMEDIATE` transaction, which
+ * frees their emails. Users deleted earlier keep their own `deleted_at`. Returns false, changing
+ * nothing, when there is no such active firm.
+ */
+export function softDeleteFirm(db: Database.Database, now: string, id: string): boolean {
+  const softDelete = db.transaction((): boolean => {
+    const firm = db
+      .prepare<{ id: string; now: string }>(
+        'UPDATE firms SET deleted_at = @now, updated_at = @now WHERE id = @id AND deleted_at IS NULL',
+      )
+      .run({ id, now });
+    if (firm.changes === 0) return false;
+
+    db.prepare<{ id: string; now: string }>(
+      `UPDATE users SET deleted_at = @now, updated_at = @now
+        WHERE firm_id = @id AND deleted_at IS NULL`,
+    ).run({ id, now });
+    return true;
+  });
+
+  return softDelete.immediate();
+}

@@ -8,6 +8,7 @@ import {
   findActiveFirmById,
   listActiveFirms,
   renameFirm,
+  softDeleteFirm,
 } from '../../src/server/modules/platform/firms.ts';
 import { createSeededDatabase } from '../helpers/db.ts';
 
@@ -161,5 +162,56 @@ describe('renameFirm', () => {
 
     expect(renameFirm(db, NOW, id, 'New Name')).toBeUndefined();
     expect(firmRow(id)).toEqual({ name: 'Deleted Firm', created_at: EARLIER, updated_at: EARLIER });
+  });
+});
+
+describe('softDeleteFirm', () => {
+  const NOW = '2026-09-26T09:30:00.000Z';
+
+  function firstFirmId(): string {
+    return db
+      .prepare("SELECT id FROM firms WHERE name = 'First Test Firm'")
+      .pluck()
+      .get() as string;
+  }
+
+  function firmDeletion(id: string) {
+    return db.prepare('SELECT deleted_at, updated_at FROM firms WHERE id = ?').get(id);
+  }
+
+  function userDeletion(emailNormalized: string) {
+    return db
+      .prepare('SELECT deleted_at, updated_at FROM users WHERE email_normalized = ?')
+      .get(emailNormalized);
+  }
+
+  it('stamps the firm and its active users with the given time', () => {
+    const id = firstFirmId();
+
+    expect(softDeleteFirm(db, NOW, id)).toBe(true);
+    expect(firmDeletion(id)).toEqual({ deleted_at: NOW, updated_at: NOW });
+    expect(userDeletion('boss@first.test')).toEqual({ deleted_at: NOW, updated_at: NOW });
+    expect(userDeletion('boss@second.test')).toMatchObject({ deleted_at: null });
+  });
+
+  it('returns false and changes nothing for an unknown or already deleted firm', () => {
+    const id = firstFirmId();
+    softDeleteFirm(db, DELETED_AT, id);
+
+    expect(softDeleteFirm(db, NOW, id)).toBe(false);
+    expect(softDeleteFirm(db, NOW, randomUUID())).toBe(false);
+    expect(firmDeletion(id)).toEqual({ deleted_at: DELETED_AT, updated_at: DELETED_AT });
+  });
+
+  it('rolls the firm back when the user cascade fails', () => {
+    const id = firstFirmId();
+    db.exec(`
+      CREATE TEMP TRIGGER fail_user_cascade BEFORE UPDATE OF deleted_at ON users
+      BEGIN SELECT RAISE(ABORT, 'cascade failed'); END;
+    `);
+
+    expect(() => softDeleteFirm(db, NOW, id)).toThrow(/cascade failed/);
+    expect(firmDeletion(id)).toMatchObject({ deleted_at: null });
+    expect(userDeletion('boss@first.test')).toMatchObject({ deleted_at: null });
   });
 });

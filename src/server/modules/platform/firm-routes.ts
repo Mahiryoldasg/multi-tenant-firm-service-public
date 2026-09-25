@@ -11,6 +11,7 @@ import {
   findActiveFirmById,
   listActiveFirms,
   renameFirm,
+  softDeleteFirm,
 } from './firms.ts';
 
 const NAME_REQUIRED_MESSAGE = 'Firma adı zorunludur.';
@@ -75,6 +76,14 @@ export function createFirmRouter({ db }: FirmRouterDeps): Router {
     if (!firm) throw new HttpError('NOT_FOUND', FIRM_NOT_FOUND_MESSAGE);
 
     res.json({ firm });
+  });
+
+  router.delete('/:id', (req, res) => {
+    // An unknown or already deleted firm is 404: deleting is not idempotent (contract §3).
+    if (!softDeleteFirm(db, new Date().toISOString(), req.params.id)) {
+      throw new HttpError('NOT_FOUND', FIRM_NOT_FOUND_MESSAGE);
+    }
+    res.status(204).end();
   });
 
   return router;
