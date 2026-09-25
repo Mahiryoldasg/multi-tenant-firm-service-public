@@ -1,13 +1,13 @@
+import type { Express as App } from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../../src/server/app.ts';
+import { createTestApp } from '../helpers/app.ts';
 import { createCapturingLogger } from '../helpers/log.ts';
 
-type App = ReturnType<typeof createApp>;
-
-function createTestApp() {
+async function createLoggedApp() {
   const { logger, output } = createCapturingLogger();
-  return { app: createApp({ logger }), output };
+  const { app } = await createTestApp({ logger });
+  return { app, output };
 }
 
 describe('unknown routes and methods', () => {
@@ -16,7 +16,7 @@ describe('unknown routes and methods', () => {
     { label: 'POST /nope', send: (app: App) => request(app).post('/nope') },
     { label: 'DELETE /health (no 405)', send: (app: App) => request(app).delete('/health') },
   ])('$label answers the 404 envelope as JSON', async ({ send }) => {
-    const { app } = createTestApp();
+    const { app } = await createLoggedApp();
 
     const res = await send(app);
 
@@ -28,7 +28,7 @@ describe('unknown routes and methods', () => {
 
 describe('unreadable request bodies', () => {
   it('answers malformed JSON with 400 and keeps the raw body out of the log', async () => {
-    const { app, output } = createTestApp();
+    const { app, output } = await createLoggedApp();
 
     const res = await request(app)
       .post('/api/anything')
@@ -42,7 +42,7 @@ describe('unreadable request bodies', () => {
   });
 
   it('answers a JSON body over the 100 kB limit with 400, not 413', async () => {
-    const { app } = createTestApp();
+    const { app } = await createLoggedApp();
 
     const res = await request(app)
       .post('/api/anything')

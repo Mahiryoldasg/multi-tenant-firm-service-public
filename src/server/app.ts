@@ -1,12 +1,17 @@
+import type Database from 'better-sqlite3';
 import express from 'express';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
+import { createLoginHandler } from './auth/login.ts';
+import type { AppConfig } from './config.ts';
 import { errorHandler, notFoundHandler } from './http/error-handler.ts';
 
 export interface AppDeps {
   logger: Logger;
+  db: Database.Database;
+  config: Pick<AppConfig, 'jwtSecret' | 'userTokenTtlSeconds'>;
 }
 
 // After `npm run build` this file lives in dist/server, and the Vite build in dist/web.
@@ -17,7 +22,7 @@ function isBackendPath(urlPath: string): boolean {
   return BACKEND_PREFIXES.some((prefix) => urlPath === prefix || urlPath.startsWith(`${prefix}/`));
 }
 
-export function createApp({ logger }: AppDeps): express.Express {
+export function createApp({ logger, db, config }: AppDeps): express.Express {
   const app = express();
   app.disable('x-powered-by');
   app.use(pinoHttp({ logger }));
@@ -26,6 +31,9 @@ export function createApp({ logger }: AppDeps): express.Express {
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
+
+  // Public. Feature 3 adds `authenticate` on /api after this route.
+  app.post('/api/auth/login', createLoginHandler({ db, config }));
 
   // Control UI (production build only). In development Vite serves the UI and proxies API calls.
   if (existsSync(WEB_DIR)) {
