@@ -13,3 +13,13 @@ Format: `- **YYYY-MM-DD · topic** - decision. Why.`
 - **2026-09-24 · Line endings** - `.gitattributes` forces LF so Windows checkouts lint and format the same as Unix.
 - **2026-09-24 · Vitest 4.0.18 pin** - Vitest 4.1.x makes npm 10.9 (bundled with Node 22) crash while resolving dependencies (`Cannot read properties of null (reading 'edgesOut')`), so a clean `npm install` on Node 22 would fail. 4.0.18 installs cleanly on npm 10 and 11.
 - **2026-09-24 · allowScripts** - npm 11 warns about install scripts that are not listed in `allowScripts`. better-sqlite3 needs its install script to fetch the prebuilt binary, so it is allowed explicitly (plus esbuild). `@scarf/scarf` (swagger-ui telemetry) is denied.
+
+## Feature 1 - Persistence & idempotent seed
+
+- **2026-09-25 · SQLite connection** - `openDatabase` creates the `DB_PATH` folder, then enables `journal_mode=WAL` and `foreign_keys=ON` before migrating. better-sqlite3 does not create folders (a fresh clone has no `data/`), and SQLite keeps foreign keys off unless each connection turns them on.
+- **2026-09-25 · Migrations** - ordered SQL strings tracked by `PRAGMA user_version`; each migration and its version bump share one transaction, and a committed migration is never edited. Strings, not `.sql` files, because `tsc` emits only TypeScript into `dist/server`.
+- **2026-09-25 · Initial schema** - migration 1 creates the whole locked data model, including `display_tokens` and `firms.active_mode_id` (used from feature 7), because features 2-13 depend on these shapes.
+- **2026-09-25 · NOT NULL primary keys** - every TEXT primary key is declared `NOT NULL`, because SQLite otherwise accepts NULL in any primary key that is not `INTEGER PRIMARY KEY`.
+- **2026-09-25 · Password hashing** - async `node:crypto` scrypt with a 16-byte salt and a 64-byte key, stored as `<salt>:<key>` hex and compared with `timingSafeEqual`; async so request handlers never block the event loop. Node's default cost (N=16384, r=8, p=1) keeps logins and tests fast; OWASP suggests more, and raising it later needs a format version or a reseed.
+- **2026-09-25 · Seed config** - the 8 `SEED_*` values are required on every boot, with no defaults in code: they are credentials, the contract keeps secrets out of code, and a broken `.env` fails at once. `.env.example` holds the documented values.
+- **2026-09-25 · Idempotent seed** - a `meta` marker (`seeded_at`), not row counts, records the seed, so deleting the seed firms never re-seeds. Passwords are hashed before the synchronous better-sqlite3 transaction; one `BEGIN IMMEDIATE` transaction re-checks the marker and inserts everything, so a failed seed leaves nothing behind. Exactly 2 firms.
