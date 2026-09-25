@@ -30,7 +30,7 @@ try {
 }
 logger.info({ dbPath: config.dbPath, seeded }, 'Database ready');
 
-const server = createServer(createApp({ logger }));
+const server = createServer(createApp({ logger, db, config }));
 
 server.listen(config.port, () => {
   logger.info({ port: config.port }, `Server ready on http://localhost:${config.port}`);

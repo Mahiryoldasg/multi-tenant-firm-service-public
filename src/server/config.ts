@@ -3,7 +3,7 @@ export interface AppConfig {
   port: number;
   jwtSecret: string;
   dbPath: string;
-  userTokenTtl: string;
+  userTokenTtlSeconds: number;
   logLevel: string;
   seed: SeedConfig;
 }
@@ -38,10 +38,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port,
     jwtSecret,
     dbPath: env.DB_PATH?.trim() || './data/app.db',
-    userTokenTtl: env.USER_TOKEN_TTL?.trim() || '12h',
+    userTokenTtlSeconds: parseTokenTtl(env.USER_TOKEN_TTL?.trim() || '12h'),
     logLevel: env.LOG_LEVEL?.trim() || 'info',
     seed: loadSeedConfig(env),
   };
+}
+
+const SECONDS_PER_UNIT = { s: 1, m: 60, h: 3600, d: 86400 } as const;
+
+// Converted to whole seconds here, because jsonwebtoken reads a bare numeric string such as "3600"
+// as milliseconds. A bad value fails at boot instead of at the first login.
+function parseTokenTtl(raw: string): number {
+  const match = /^(\d+)([smhd])$/.exec(raw);
+  const seconds = match
+    ? Number(match[1]) * SECONDS_PER_UNIT[match[2] as keyof typeof SECONDS_PER_UNIT]
+    : 0;
+  if (!Number.isSafeInteger(seconds) || seconds < 1) {
+    throw new Error(
+      `USER_TOKEN_TTL must be a whole number followed by s, m, h or d (for example 12h), got "${raw}".`,
+    );
+  }
+  return seconds;
 }
 
 // Required on every boot, not only the first, so a broken .env shows up immediately.

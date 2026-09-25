@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
+import { normalizeEmail } from '../auth/email.ts';
 import { hashPassword } from '../auth/password.ts';
 import type { SeedConfig, SeedFirm } from '../config.ts';
 
@@ -72,5 +73,5 @@ function insertUser(db: Database.Database, now: string, user: SeedUser): void {
     `INSERT INTO users
        (id, firm_id, email, email_normalized, password_hash, role, created_at, updated_at)
      VALUES (@id, @firmId, @email, @emailNormalized, @passwordHash, @role, @now, @now)`,
-  ).run({ ...user, id: randomUUID(), emailNormalized: user.email.toLowerCase(), now });
+  ).run({ ...user, id: randomUUID(), emailNormalized: normalizeEmail(user.email), now });
 }
