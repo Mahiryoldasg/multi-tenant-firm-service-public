@@ -1,6 +1,6 @@
 # Multi-Tenant Firma & Çalışan Yönetim Servisi
 
-> Taslak — kurulum, seed bilgileri, örnek istekler ve test komutları build-plan'daki 14. maddede tamamlanacak.
+> Taslak: kurulum, seed bilgileri, örnek istekler ve test komutları build-plan'daki 14. maddede tamamlanacak.
 
 ## Gereksinimler
 

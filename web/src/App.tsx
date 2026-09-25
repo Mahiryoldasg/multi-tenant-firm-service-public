@@ -3,12 +3,12 @@ import { useEffect, useState } from 'react';
 type HealthState = 'checking' | 'ok' | 'down';
 
 const HEALTH_LABELS: Record<HealthState, string> = {
-  checking: 'kontrol ediliyor…',
+  checking: 'kontrol ediliyor...',
   ok: 'çalışıyor',
   down: 'ulaşılamıyor',
 };
 
-// Placeholder shell: replaced by the real control UI in build-plan items 11–13.
+// Placeholder shell: replaced by the real control UI in build-plan items 11-13.
 export function App() {
   const [health, setHealth] = useState<HealthState>('checking');
 
