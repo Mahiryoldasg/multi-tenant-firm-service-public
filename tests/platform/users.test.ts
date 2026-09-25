@@ -3,7 +3,10 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { normalizeEmail } from '../../src/server/auth/email.ts';
 import { verifyPassword } from '../../src/server/auth/password.ts';
-import { findActiveUserByEmail } from '../../src/server/modules/platform/users.ts';
+import {
+  findActiveUserByEmail,
+  findActiveUserById,
+} from '../../src/server/modules/platform/users.ts';
 import { createSeededDatabase } from '../helpers/db.ts';
 
 const DELETED_AT = '2026-09-25T12:00:00.000Z';
@@ -98,5 +101,58 @@ describe('findActiveUserByEmail', () => {
       role: 'member',
       firmId: firmId('Second Test Firm'),
     });
+  });
+});
+
+describe('findActiveUserById', () => {
+  function idOf(email: string): string {
+    const user = find(email);
+    if (!user) throw new Error(`No active user ${email}`);
+    return user.id;
+  }
+
+  it('finds a firm admin in the stored casing, without the password hash', () => {
+    const id = idOf('boss@first.test');
+
+    const user = findActiveUserById(db, id);
+
+    expect(user).toEqual({
+      id,
+      email: 'Boss@First.Test',
+      role: 'firm_admin',
+      firmId: firmId('First Test Firm'),
+    });
+    expect(user).not.toHaveProperty('passwordHash');
+  });
+
+  it('finds the platform admin with a null firmId', () => {
+    expect(findActiveUserById(db, idOf('root@platform.test'))).toEqual({
+      id: expect.any(String),
+      email: 'Root@Platform.Test',
+      role: 'platform_admin',
+      firmId: null,
+    });
+  });
+
+  it('finds nothing for an unknown id', () => {
+    expect(findActiveUserById(db, randomUUID())).toBeUndefined();
+  });
+
+  it('finds nothing for a soft-deleted user', () => {
+    const id = idOf('boss@first.test');
+    softDeleteUser('boss@first.test');
+
+    expect(findActiveUserById(db, id)).toBeUndefined();
+  });
+
+  it('finds nothing for an active user of a soft-deleted firm', () => {
+    const id = idOf('boss@first.test');
+    db.prepare('UPDATE firms SET deleted_at = @at WHERE id = @id').run({
+      at: DELETED_AT,
+      id: firmId('First Test Firm'),
+    });
+
+    expect(findActiveUserById(db, id)).toBeUndefined();
+    expect(findActiveUserById(db, idOf('boss@second.test'))).toMatchObject({ role: 'firm_admin' });
   });
 });

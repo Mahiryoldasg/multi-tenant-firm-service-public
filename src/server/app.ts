@@ -5,7 +5,9 @@ import path from 'node:path';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
 import { createLoginHandler } from './auth/login.ts';
+import { meHandler } from './auth/me.ts';
 import type { AppConfig } from './config.ts';
+import { createAuthenticate } from './http/authenticate.ts';
 import { errorHandler, notFoundHandler } from './http/error-handler.ts';
 
 export interface AppDeps {
@@ -32,8 +34,11 @@ export function createApp({ logger, db, config }: AppDeps): express.Express {
     res.json({ status: 'ok' });
   });
 
-  // Public. Feature 3 adds `authenticate` on /api after this route.
+  // The only public /api route, so it is registered before `authenticate` guards the rest of /api,
+  // including unknown paths (401 before 404).
   app.post('/api/auth/login', createLoginHandler({ db, config }));
+  app.use('/api', createAuthenticate({ db, config }));
+  app.get('/api/auth/me', meHandler);
 
   // Control UI (production build only). In development Vite serves the UI and proxies API calls.
   if (existsSync(WEB_DIR)) {

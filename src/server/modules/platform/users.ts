@@ -1,12 +1,16 @@
 import type Database from 'better-sqlite3';
 import type { Role } from '../../auth/tokens.ts';
 
-/** An active user as the login needs it: identity, role, firm, and password hash. */
-export interface CredentialUser {
+/** An active user of a live firm (or the platform admin): identity, role and firm. */
+export interface ActiveUser {
   id: string;
   email: string;
   role: Role;
   firmId: string | null;
+}
+
+/** An active user as the login needs it, with the password hash. */
+export interface CredentialUser extends ActiveUser {
   passwordHash: string;
 }
 
@@ -29,4 +33,21 @@ export function findActiveUserByEmail(
           AND (users.firm_id IS NULL OR firms.deleted_at IS NULL)`,
     )
     .get({ emailNormalized });
+}
+
+/**
+ * Finds the active user with this id. Like the email lookup, it checks the firm itself, so a user of
+ * a soft-deleted firm is not found even if their own row was never soft-deleted.
+ */
+export function findActiveUserById(db: Database.Database, id: string): ActiveUser | undefined {
+  return db
+    .prepare<{ id: string }, ActiveUser>(
+      `SELECT users.id, users.email, users.role, users.firm_id AS firmId
+         FROM users
+         LEFT JOIN firms ON firms.id = users.firm_id
+        WHERE users.id = @id
+          AND users.deleted_at IS NULL
+          AND (users.firm_id IS NULL OR firms.deleted_at IS NULL)`,
+    )
+    .get({ id });
 }
