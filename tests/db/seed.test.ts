@@ -205,4 +205,17 @@ describe('seedDatabase on a database file', () => {
     await expect(seedDatabase(secondBoot, SEED)).resolves.toBe(false);
     expect(rowCounts(secondBoot)).toEqual({ firms: 2, users: 3, markers: 1 });
   });
+
+  it('lets only one of two overlapping seeds write, even from separate connections', async () => {
+    const dbPath = path.join(tempDir, 'data', 'app.db');
+    const first = boot(dbPath);
+    const second = boot(dbPath);
+
+    // Both calls pass the first marker check before either transaction starts, because each one
+    // awaits its password hashing first. Only the re-check inside the transaction stops the second.
+    const results = await Promise.all([seedDatabase(first, SEED), seedDatabase(second, SEED)]);
+
+    expect(results.filter((seeded) => seeded)).toEqual([true]);
+    expect(rowCounts(first)).toEqual({ firms: 2, users: 3, markers: 1 });
+  });
 });
