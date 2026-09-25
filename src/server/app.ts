@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { Logger } from 'pino';
 import { pinoHttp } from 'pino-http';
+import { errorHandler, notFoundHandler } from './http/error-handler.ts';
 
 export interface AppDeps {
   logger: Logger;
@@ -20,6 +21,7 @@ export function createApp({ logger }: AppDeps): express.Express {
   const app = express();
   app.disable('x-powered-by');
   app.use(pinoHttp({ logger }));
+  app.use(express.json());
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
@@ -33,6 +35,9 @@ export function createApp({ logger }: AppDeps): express.Express {
       res.sendFile(path.join(WEB_DIR, 'index.html'));
     });
   }
+
+  app.use(notFoundHandler);
+  app.use(errorHandler);
 
   return app;
 }
