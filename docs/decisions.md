@@ -5,7 +5,7 @@ Format: `- **YYYY-MM-DD · topic** - decision. Why.`
 
 ## Pre-build
 
-- **2026-09-24 · Runtime** - Node 22/24 LTS, `engines >= 20.19`. Node 18/20 are EOL and better-sqlite3 12.x ships prebuilt binaries for Node 20–26 (contract note N1).
+- **2026-09-24 · Runtime** - Node 22/24 LTS, `engines >= 20.19`. Node 18/20 are EOL and better-sqlite3 12.x ships prebuilt binaries for Node 20-26 (contract note N1).
 - **2026-09-24 · HTTP framework** - Express 5. We own the 401→403→404→400→409 pipeline; schema-first frameworks validate before the handler and would answer 400 before 404.
 - **2026-09-24 · Imports** - relative imports use the real `.ts` extension; `tsc` rewrites them (`rewriteRelativeImportExtensions`). Same code runs under tsx, Vitest and compiled Node.
 - **2026-09-24 · Single package** - server and UI share one `package.json` so `npm install && npm start` is the whole setup; Vite builds the UI into `dist/web`, Express serves it.
