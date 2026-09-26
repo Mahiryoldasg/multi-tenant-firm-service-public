@@ -342,6 +342,20 @@ describe('POST /api/employees failure', () => {
     expect(userCount()).toBe(before);
   });
 
+  it('answers 400 for a JSON string body and inserts nothing', async () => {
+    const before = userCount();
+
+    const res = await request(app)
+      .post(EMPLOYEES_PATH)
+      .set('Authorization', `Bearer ${firstAdminToken()}`)
+      .set('Content-Type', 'application/json')
+      .send('"New@First.Test"');
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual(VALIDATION_ERROR);
+    expect(userCount()).toBe(before);
+  });
+
   it('answers 400, not 409, for an invalid body with a taken email', async () => {
     const res = await createEmployee({ ...NEW_EMPLOYEE, email: SECOND_ADMIN_EMAIL, role: 'bogus' });
 
