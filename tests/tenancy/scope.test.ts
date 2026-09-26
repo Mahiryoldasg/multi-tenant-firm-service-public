@@ -210,3 +210,108 @@ describe('employees.create', () => {
     expect(userCount()).toBe(before);
   });
 });
+
+describe('employees.update', () => {
+  function userRow(id: string): unknown {
+    return db.prepare('SELECT * FROM users WHERE id = @id').get({ id });
+  }
+
+  function usersSnapshot(): unknown[] {
+    return db.prepare('SELECT * FROM users ORDER BY rowid').all();
+  }
+
+  it.each([
+    {
+      label: 'the role',
+      changes: { role: 'firm_admin' as const },
+      expected: { email: 'Member@First.Test', role: 'firm_admin' },
+    },
+    {
+      label: 'the email',
+      changes: { email: 'Renamed@First.Test' },
+      expected: { email: 'Renamed@First.Test', role: 'member' },
+    },
+    {
+      label: 'both',
+      changes: { email: 'Renamed@First.Test', role: 'firm_admin' as const },
+      expected: { email: 'Renamed@First.Test', role: 'firm_admin' },
+    },
+  ])('changes $label, keeps the rest and stamps updated_at', ({ changes, expected }) => {
+    const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
+
+    const updated = createTenantScope(db, firstFirmId).employees.update(LATER, member, changes);
+
+    expect(updated).toEqual({ id: member, ...expected });
+    expect(userRow(member)).toMatchObject({
+      firm_id: firstFirmId,
+      email: expected.email,
+      email_normalized: expected.email.toLowerCase(),
+      role: expected.role,
+      created_at: EARLIER,
+      updated_at: LATER,
+      deleted_at: null,
+    });
+  });
+
+  it("accepts the employee's own email in a new casing", () => {
+    const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
+
+    const updated = createTenantScope(db, firstFirmId).employees.update(LATER, member, {
+      email: 'MEMBER@first.test',
+    });
+
+    expect(updated).toEqual({ id: member, email: 'MEMBER@first.test', role: 'member' });
+  });
+
+  it.each([
+    { label: 'another own-firm employee', email: 'BOSS@first.test' },
+    { label: "another firm's employee", email: SECOND_ADMIN_EMAIL },
+    { label: 'the platform admin', email: TEST_SEED.platformAdmin.email },
+  ])('returns EMAIL_TAKEN for the email of $label and changes nothing', ({ email }) => {
+    const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
+    const before = usersSnapshot();
+
+    const updated = createTenantScope(db, firstFirmId).employees.update(LATER, member, { email });
+
+    expect(updated).toBe(EMAIL_TAKEN);
+    expect(usersSnapshot()).toEqual(before);
+  });
+
+  it('maps a unique-index clash the pre-check missed to EMAIL_TAKEN and changes nothing', () => {
+    const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
+    // Only the firm row is deleted, so its admin stays active for the partial unique index.
+    db.prepare('UPDATE firms SET deleted_at = @at WHERE id = @id').run({
+      at: DELETED_AT,
+      id: secondFirmId,
+    });
+    const before = usersSnapshot();
+
+    const updated = createTenantScope(db, firstFirmId).employees.update(LATER, member, {
+      email: SECOND_ADMIN_EMAIL,
+    });
+
+    expect(updated).toBe(EMAIL_TAKEN);
+    expect(usersSnapshot()).toEqual(before);
+  });
+
+  it.each([
+    { label: "another firm's employee", id: () => userId(SECOND_ADMIN_EMAIL) },
+    {
+      label: 'a soft-deleted employee',
+      id: () => {
+        const gone = addEmployee(firstFirmId, 'Gone@First.Test', EARLIER);
+        softDeleteUser(gone);
+        return gone;
+      },
+    },
+    { label: 'an unknown id', id: () => randomUUID() },
+  ])('returns undefined for $label, even with a taken email, and changes nothing', ({ id }) => {
+    const target = id();
+    const before = usersSnapshot();
+    const employees = createTenantScope(db, firstFirmId).employees;
+
+    expect(employees.update(LATER, target, { role: 'firm_admin' })).toBeUndefined();
+    expect(employees.update(LATER, target, { email: FIRST_ADMIN_EMAIL })).toBeUndefined();
+    expect(usersSnapshot()).toEqual(before);
+  });
+});

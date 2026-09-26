@@ -16,6 +16,7 @@ const EMAIL_REQUIRED_MESSAGE = 'E-posta zorunludur.';
 const EMAIL_INVALID_MESSAGE = 'E-posta geçerli değil.';
 const PASSWORD_REQUIRED_MESSAGE = 'Şifre zorunludur.';
 const ROLE_INVALID_MESSAGE = 'Rol firm_admin veya member olmalı.';
+const EMPTY_UPDATE_MESSAGE = 'Güncellenecek bir alan gönderilmeli (email veya role).';
 
 const emailSchema = requiredString(EMAIL_REQUIRED_MESSAGE).refine(
   isValidEmail,
@@ -33,6 +34,14 @@ const createEmployeeBodySchema = z.object(
   },
   { error: INVALID_BODY_MESSAGE },
 );
+
+// Unknown fields, `password` and `firmId` included, are dropped: neither can change here.
+const updateEmployeeBodySchema = z
+  .object(
+    { email: emailSchema.optional(), role: employeeRoleSchema.optional() },
+    { error: INVALID_BODY_MESSAGE },
+  )
+  .refine((body) => body.email !== undefined || body.role !== undefined, EMPTY_UPDATE_MESSAGE);
 
 // The methods that change employees. Other methods have no route here and stay 404 for everyone.
 const WRITE_METHODS = new Set(['POST', 'PATCH', 'DELETE']);
@@ -80,6 +89,25 @@ export function createEmployeeRouter(): Router {
     if (created === EMAIL_TAKEN) throw new HttpError('CONFLICT', EMAIL_TAKEN_MESSAGE);
 
     res.status(201).json({ employee: created });
+  });
+
+  router.patch('/:id', (req, res) => {
+    const { employees } = getTenant(req);
+    // The lookup comes before validation, so another firm's or a deleted employee is 404 even with
+    // an invalid body (contract §3).
+    if (!employees.findById(req.params.id)) {
+      throw new HttpError('NOT_FOUND', EMPLOYEE_NOT_FOUND_MESSAGE);
+    }
+    const { email, role } = parseBody(updateEmployeeBodySchema, req.body);
+
+    const employee = employees.update(new Date().toISOString(), req.params.id, {
+      email: email?.trim(),
+      role,
+    });
+    if (employee === EMAIL_TAKEN) throw new HttpError('CONFLICT', EMAIL_TAKEN_MESSAGE);
+    if (!employee) throw new HttpError('NOT_FOUND', EMPLOYEE_NOT_FOUND_MESSAGE);
+
+    res.json({ employee });
   });
 
   // Like the firm router: keeps every unhandled request, OPTIONS included, on the 404 envelope.

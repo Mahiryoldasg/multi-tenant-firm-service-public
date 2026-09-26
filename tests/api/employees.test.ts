@@ -98,12 +98,22 @@ function createEmployee(body: unknown, token = firstAdminToken()) {
   return body === undefined ? req : req.send(body as object);
 }
 
+function patchEmployee(id: string, body: unknown, token = firstAdminToken()) {
+  const req = request(app).patch(`${EMPLOYEES_PATH}/${id}`).set('Authorization', `Bearer ${token}`);
+  return body === undefined ? req : req.send(body as object);
+}
+
 function login(email: string, password: string) {
   return request(app).post('/api/auth/login').send({ email, password });
 }
 
 function userCount(): number {
   return db.prepare<[], { count: number }>('SELECT COUNT(*) AS count FROM users').get()?.count ?? 0;
+}
+
+/** Every user row, to prove a rejected request changed nothing. */
+function usersSnapshot(): unknown[] {
+  return db.prepare('SELECT * FROM users ORDER BY rowid').all();
 }
 
 function softDeleteFirmRow(id: string): void {
@@ -381,12 +391,213 @@ describe('POST /api/employees logging', () => {
   });
 });
 
-describe('the firm-admin write guard', () => {
-  /** Every user row, to prove a rejected request changed nothing. */
-  function usersSnapshot(): unknown[] {
-    return db.prepare('SELECT * FROM users ORDER BY rowid').all();
-  }
+describe('PATCH /api/employees/:id success', () => {
+  it.each([
+    {
+      label: 'the role',
+      body: { role: 'firm_admin' },
+      expected: { email: 'Zed@First.Test', role: 'firm_admin' },
+    },
+    {
+      label: 'the email',
+      body: { email: '  Renamed@First.Test  ' },
+      expected: { email: 'Renamed@First.Test', role: 'member' },
+    },
+    {
+      label: 'both',
+      body: { email: 'Renamed@First.Test', role: 'firm_admin' },
+      expected: { email: 'Renamed@First.Test', role: 'firm_admin' },
+    },
+  ])('answers 200 with exactly the employee after changing $label', async ({ body, expected }) => {
+    const zed = addEmployee(firstFirmId, 'Zed@First.Test');
 
+    const res = await patchEmployee(zed, body);
+    const one = await getEmployees(`/${zed}`, firstAdminToken());
+    const row = db
+      .prepare('SELECT email_normalized AS emailNormalized FROM users WHERE id = ?')
+      .get(zed);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ employee: { id: zed, ...expected } });
+    expect(one.body).toEqual({ employee: { id: zed, ...expected } });
+    expect(row).toEqual({ emailNormalized: expected.email.toLowerCase() });
+  });
+
+  it("accepts the employee's own email in a new casing and stores that casing", async () => {
+    const zed = addEmployee(firstFirmId, 'Zed@First.Test');
+
+    const res = await patchEmployee(zed, { email: 'ZED@first.TEST' });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ employee: { id: zed, email: 'ZED@first.TEST', role: 'member' } });
+  });
+
+  it('lets the employee log in with the new email only', async () => {
+    const { body } = await createEmployee(NEW_EMPLOYEE).expect(201);
+
+    await patchEmployee(body.employee.id, { email: 'Renamed@First.Test' }).expect(200);
+
+    expect((await login('renamed@first.test', NEW_EMPLOYEE.password)).status).toBe(200);
+    expect((await login(NEW_EMPLOYEE.email, NEW_EMPLOYEE.password)).status).toBe(401);
+  });
+
+  it('applies a demotion to the demoted admin on their next request', async () => {
+    addEmployee(firstFirmId, 'Zed@First.Test', 'firm_admin');
+    const zedToken = userTokenFor(db, 'Zed@First.Test');
+
+    await patchEmployee(userId('Zed@First.Test'), { role: 'member' }).expect(200);
+    const res = await createEmployee(NEW_EMPLOYEE, zedToken);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual(FORBIDDEN);
+  });
+
+  it('applies a firm admin demoting themselves on their next request', async () => {
+    const token = firstAdminToken();
+
+    await patchEmployee(userId(FIRST_ADMIN_EMAIL), { role: 'member' }, token).expect(200);
+    const res = await createEmployee(NEW_EMPLOYEE, token);
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual(FORBIDDEN);
+  });
+
+  it("applies a promotion to the member's existing token on the next request", async () => {
+    const memberToken = firstMemberToken();
+
+    await patchEmployee(userId(FIRST_MEMBER_EMAIL), { role: 'firm_admin' }).expect(200);
+    const res = await createEmployee(NEW_EMPLOYEE, memberToken);
+
+    expect(res.status).toBe(201);
+  });
+
+  it('ignores unknown fields, so the firm and the password stay unchanged', async () => {
+    const { body } = await createEmployee(NEW_EMPLOYEE).expect(201);
+    const id: string = body.employee.id;
+
+    const res = await patchEmployee(id, {
+      role: 'firm_admin',
+      firmId: secondFirmId,
+      password: 'other-secret',
+    });
+    const row = db.prepare('SELECT firm_id AS firmId FROM users WHERE id = ?').get(id);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ employee: { id, email: NEW_EMPLOYEE.email, role: 'firm_admin' } });
+    expect(row).toEqual({ firmId: firstFirmId });
+    expect((await login(NEW_EMPLOYEE.email, NEW_EMPLOYEE.password)).status).toBe(200);
+    expect((await login(NEW_EMPLOYEE.email, 'other-secret')).status).toBe(401);
+  });
+});
+
+describe('PATCH /api/employees/:id failure', () => {
+  it('answers 401 without a token', async () => {
+    const res = await request(app)
+      .patch(`${EMPLOYEES_PATH}/${userId(FIRST_ADMIN_EMAIL)}`)
+      .send({ role: 'member' });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(UNAUTHORIZED);
+  });
+
+  it.each([
+    { label: "another firm's employee", id: () => userId(SECOND_ADMIN_EMAIL) },
+    {
+      label: 'a soft-deleted employee',
+      id: () => {
+        const gone = addEmployee(firstFirmId, 'Gone@First.Test');
+        softDeleteUser(gone);
+        return gone;
+      },
+    },
+    { label: 'an unknown id', id: () => randomUUID() },
+    { label: "the platform admin's id", id: () => userId(PLATFORM_ADMIN_EMAIL) },
+    { label: 'a malformed percent-encoded id', id: () => '%E0' },
+  ])('answers 404 for $label with a valid or an empty body and changes nothing', async ({ id }) => {
+    const target = id();
+    const before = usersSnapshot();
+
+    const valid = await patchEmployee(target, { role: 'firm_admin' });
+    // Contract §3: the lookup answers before the body is validated.
+    const empty = await patchEmployee(target, {});
+
+    expect(valid.status).toBe(404);
+    expect(valid.body).toEqual(NOT_FOUND);
+    expect(empty.status).toBe(404);
+    expect(empty.body).toEqual(NOT_FOUND);
+    expect(usersSnapshot()).toEqual(before);
+  });
+
+  it.each([
+    { label: 'no body', body: undefined },
+    { label: 'an empty body', body: {} },
+    { label: 'only unknown fields', body: { name: 'Zed' } },
+    { label: 'only a password', body: { password: 'other-secret' } },
+    { label: 'an array body', body: [{ role: 'member' }] },
+    { label: 'a null email', body: { email: null } },
+    { label: 'a null role', body: { role: null } },
+    { label: 'a blank email', body: { email: '   ' } },
+    { label: 'an email without @', body: { email: 'zed.first.test' } },
+    { label: 'the platform_admin role', body: { role: 'platform_admin' } },
+    { label: 'an unknown role', body: { role: 'bogus' } },
+    { label: 'a valid email with a bad role', body: { email: 'Valid@First.Test', role: 'bogus' } },
+  ])('answers 400 for $label and changes nothing', async ({ body }) => {
+    const zed = addEmployee(firstFirmId, 'Zed@First.Test');
+    const before = usersSnapshot();
+
+    const res = await patchEmployee(zed, body);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual(VALIDATION_ERROR);
+    expect(usersSnapshot()).toEqual(before);
+  });
+
+  it.each([
+    { label: 'another own-firm employee', email: '  boss@FIRST.test  ' },
+    { label: "the other firm's admin", email: 'BOSS@SECOND.TEST' },
+    { label: 'the platform admin', email: 'root@platform.test' },
+  ])('answers 409 for the email of $label and changes nothing', async ({ email }) => {
+    const zed = addEmployee(firstFirmId, 'Zed@First.Test');
+    const before = usersSnapshot();
+
+    const res = await patchEmployee(zed, { email });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual(CONFLICT);
+    expect(usersSnapshot()).toEqual(before);
+  });
+
+  it("answers 404, not 409, for another firm's employee with a taken email", async () => {
+    const res = await patchEmployee(userId(SECOND_ADMIN_EMAIL), { email: FIRST_ADMIN_EMAIL });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(NOT_FOUND);
+  });
+
+  it('answers 400, not 409, for a bad role with a taken email', async () => {
+    const zed = addEmployee(firstFirmId, 'Zed@First.Test');
+
+    const res = await patchEmployee(zed, { email: SECOND_ADMIN_EMAIL, role: 'bogus' });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual(VALIDATION_ERROR);
+  });
+
+  it('answers 409 from the unique index when the pre-check misses, and changes nothing', async () => {
+    const zed = addEmployee(firstFirmId, 'Zed@First.Test');
+    // Only the firm row is deleted, so its admin stays active for the partial unique index.
+    softDeleteFirmRow(secondFirmId);
+    const before = usersSnapshot();
+
+    const res = await patchEmployee(zed, { email: SECOND_ADMIN_EMAIL });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual(CONFLICT);
+    expect(usersSnapshot()).toEqual(before);
+  });
+});
+
+describe('the firm-admin write guard', () => {
   function write(method: 'post' | 'patch' | 'delete', path: string, token: string) {
     return request(app)[method](`${EMPLOYEES_PATH}${path}`).set('Authorization', `Bearer ${token}`);
   }

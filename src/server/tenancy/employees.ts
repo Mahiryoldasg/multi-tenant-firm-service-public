@@ -23,6 +23,12 @@ export interface NewEmployee {
 /** What `create` returns when the scope's firm was deleted after the request was authenticated. */
 export const FIRM_GONE = 'firm_gone';
 
+/** The fields a firm admin may change; an absent field keeps its value. The email is trimmed. */
+export interface EmployeeChanges {
+  email?: string;
+  role?: EmployeeRole;
+}
+
 /** The employees of one firm. No method takes a firm id: the firm is fixed at construction. */
 export interface EmployeesRepository {
   /** The firm's active employees, oldest first. */
@@ -34,6 +40,15 @@ export interface EmployeesRepository {
    * (`EMAIL_TAKEN`) or the firm itself is gone (`FIRM_GONE`); either way nothing is written.
    */
   create(now: string, employee: NewEmployee): Employee | typeof EMAIL_TAKEN | typeof FIRM_GONE;
+  /**
+   * Changes an active employee of this firm and returns them; `undefined` when there is no such
+   * employee, `EMAIL_TAKEN` when another active user has the new email. Both write nothing.
+   */
+  update(
+    now: string,
+    id: string,
+    changes: EmployeeChanges,
+  ): Employee | undefined | typeof EMAIL_TAKEN;
 }
 
 /** Binds the employee statements to `firmId`; every statement filters on it. */
@@ -41,6 +56,18 @@ export function createEmployeesRepository(
   db: Database.Database,
   firmId: string,
 ): EmployeesRepository {
+  function findById(id: string): Employee | undefined {
+    return db
+      .prepare<{ firmId: string; id: string }, Employee>(
+        `SELECT id, email, role
+           FROM users
+          WHERE id = @id
+            AND firm_id = @firmId
+            AND deleted_at IS NULL`,
+      )
+      .get({ firmId, id });
+  }
+
   return {
     list() {
       // rowid keeps the insertion order of employees created in the same instant (the seed).
@@ -55,17 +82,7 @@ export function createEmployeesRepository(
         .all({ firmId });
     },
 
-    findById(id) {
-      return db
-        .prepare<{ firmId: string; id: string }, Employee>(
-          `SELECT id, email, role
-             FROM users
-            WHERE id = @id
-              AND firm_id = @firmId
-              AND deleted_at IS NULL`,
-        )
-        .get({ firmId, id });
-    },
+    findById,
 
     create(now, employee) {
       const create = db.transaction((): Employee | typeof EMAIL_TAKEN | typeof FIRM_GONE => {
@@ -89,6 +106,56 @@ export function createEmployeesRepository(
         return create.immediate();
       } catch (error) {
         // Mapped only after the rollback, like the firm create does.
+        if (isUniqueViolation(error)) return EMAIL_TAKEN;
+        throw error;
+      }
+    },
+
+    update(now, id, changes) {
+      const update = db.transaction((): Employee | undefined | typeof EMAIL_TAKEN => {
+        const current = findById(id);
+        if (!current) return undefined;
+
+        if (changes.email !== undefined) {
+          // The employee's own email, in any casing, is not a clash.
+          const holder = findActiveUserByEmail(db, normalizeEmail(changes.email));
+          if (holder && holder.id !== id) return EMAIL_TAKEN;
+        }
+
+        const email = changes.email ?? current.email;
+        return db
+          .prepare<
+            {
+              firmId: string;
+              id: string;
+              email: string;
+              emailNormalized: string;
+              role: EmployeeRole;
+              now: string;
+            },
+            Employee
+          >(
+            `UPDATE users
+                SET email = @email, email_normalized = @emailNormalized, role = @role,
+                    updated_at = @now
+              WHERE id = @id
+                AND firm_id = @firmId
+                AND deleted_at IS NULL
+              RETURNING id, email, role`,
+          )
+          .get({
+            firmId,
+            id,
+            email,
+            emailNormalized: normalizeEmail(email),
+            role: changes.role ?? current.role,
+            now,
+          });
+      });
+
+      try {
+        return update.immediate();
+      } catch (error) {
         if (isUniqueViolation(error)) return EMAIL_TAKEN;
         throw error;
       }
