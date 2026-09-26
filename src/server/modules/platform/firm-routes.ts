@@ -1,14 +1,13 @@
 import type Database from 'better-sqlite3';
 import { Router } from 'express';
 import { z } from 'zod';
-import { isValidEmail } from '../../auth/email.ts';
+import { EMAIL_TAKEN, EMAIL_TAKEN_MESSAGE, isValidEmail } from '../../auth/email.ts';
 import { hashPassword } from '../../auth/password.ts';
 import { notFoundHandler } from '../../http/error-handler.ts';
 import { HttpError } from '../../http/errors.ts';
 import { INVALID_BODY_MESSAGE, parseBody, requiredString } from '../../http/validate.ts';
 import {
   createFirmWithAdmin,
-  EMAIL_TAKEN,
   findActiveFirmById,
   listActiveFirms,
   renameFirm,
@@ -19,7 +18,6 @@ const NAME_REQUIRED_MESSAGE = 'Firma adı zorunludur.';
 const ADMIN_EMAIL_REQUIRED_MESSAGE = 'Admin e-postası zorunludur.';
 const ADMIN_EMAIL_INVALID_MESSAGE = 'Admin e-postası geçerli değil.';
 const ADMIN_PASSWORD_REQUIRED_MESSAGE = 'Admin şifresi zorunludur.';
-const EMAIL_TAKEN_MESSAGE = 'Bu e-posta adresi zaten kullanılıyor.';
 const FIRM_NOT_FOUND_MESSAGE = 'Firma bulunamadı.';
 
 const createFirmBodySchema = z.object(

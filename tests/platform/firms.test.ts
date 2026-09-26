@@ -1,10 +1,10 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { EMAIL_TAKEN } from '../../src/server/auth/email.ts';
 import { hashPassword, verifyPassword } from '../../src/server/auth/password.ts';
 import {
   createFirmWithAdmin,
-  EMAIL_TAKEN,
   findActiveFirmById,
   listActiveFirms,
   renameFirm,

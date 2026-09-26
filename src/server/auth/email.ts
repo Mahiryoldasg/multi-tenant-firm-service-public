@@ -10,3 +10,9 @@ const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+$/;
 export function isValidEmail(email: string): boolean {
   return EMAIL_SHAPE.test(email.trim());
 }
+
+/** What a user write returns when an active user already has the email. */
+export const EMAIL_TAKEN = 'email_taken';
+
+/** The 409 message for `EMAIL_TAKEN`, the same for every write that stores an email. */
+export const EMAIL_TAKEN_MESSAGE = 'Bu e-posta adresi zaten kullanılıyor.';

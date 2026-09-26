@@ -10,8 +10,8 @@ import { createTestApp, TEST_CONFIG } from '../helpers/app.ts';
 import { userTokenFor } from '../helpers/auth.ts';
 import { TEST_SEED } from '../helpers/db.ts';
 
-// No tenant route exists yet (features 6 and 7 add them): 403 means the guard stopped the request,
-// and 404 means it passed.
+// 403 means the guard stopped the request. The firm-user cases use paths no tenant route serves, so
+// there 404 means the request passed the guard.
 const METHODS = ['get', 'head', 'post', 'put', 'patch', 'delete', 'options'] as const;
 type Method = (typeof METHODS)[number];
 
