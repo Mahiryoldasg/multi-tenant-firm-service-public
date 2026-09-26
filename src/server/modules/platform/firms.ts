@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { normalizeEmail } from '../../auth/email.ts';
+import { EMAIL_TAKEN, normalizeEmail } from '../../auth/email.ts';
 import { findActiveUserByEmail, insertUser } from './users.ts';
 
 /** A firm as `GET /api/firms` lists it. */
@@ -65,9 +65,6 @@ export function insertFirmWithAdmin(
   });
   return { firm: { id: firmId, name }, admin: { id: adminId, email: adminEmail } };
 }
-
-/** What `createFirmWithAdmin` returns when an active user already has the admin email. */
-export const EMAIL_TAKEN = 'email_taken';
 
 /**
  * Creates a firm with its first firm admin in one `BEGIN IMMEDIATE` transaction. When an active user
