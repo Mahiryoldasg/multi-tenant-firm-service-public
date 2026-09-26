@@ -23,8 +23,13 @@ export interface AppDeps {
 const WEB_DIR = path.resolve(import.meta.dirname, '../web');
 const BACKEND_PREFIXES = ['/api', '/docs', '/openapi.json', '/socket.io', '/health'];
 
-function isBackendPath(urlPath: string): boolean {
-  return BACKEND_PREFIXES.some((prefix) => urlPath === prefix || urlPath.startsWith(`${prefix}/`));
+/** Whether the SPA fallback must leave `urlPath` to the backend routes and the 404 handler. */
+export function isBackendPath(urlPath: string): boolean {
+  // Express routes case-insensitively (`/API/MODE` reaches the /api guards), so this check must too.
+  const lowerPath = urlPath.toLowerCase();
+  return BACKEND_PREFIXES.some(
+    (prefix) => lowerPath === prefix || lowerPath.startsWith(`${prefix}/`),
+  );
 }
 
 export function createApp({ logger, db, config }: AppDeps): express.Express {
