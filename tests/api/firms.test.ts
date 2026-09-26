@@ -147,6 +147,24 @@ describe('firm routes guard', () => {
     expect(subpath.body).toEqual(NOT_FOUND);
   });
 
+  it.each([
+    { label: 'the list path', path: () => FIRMS_PATH },
+    { label: 'a firm path', path: () => `${FIRMS_PATH}/${firmId('First Test Firm')}` },
+  ])('answers OPTIONS on $label with the 404 envelope, not an Allow list', async ({ path }) => {
+    const asAdmin = await request(app)
+      .options(path())
+      .set('Authorization', `Bearer ${platformAdminToken()}`);
+    const asTenant = await request(app)
+      .options(path())
+      .set('Authorization', `Bearer ${tenantToken('firm_admin')}`);
+
+    expect(asAdmin.status).toBe(404);
+    expect(asAdmin.body).toEqual(NOT_FOUND);
+    expect(asAdmin.headers).not.toHaveProperty('allow');
+    expect(asTenant.status).toBe(403);
+    expect(asTenant.body).toEqual(FORBIDDEN);
+  });
+
   it('does not guard a path that only starts with the same letters', async () => {
     const res = await request(app)
       .get('/api/firmsx')

@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { isValidEmail } from '../../auth/email.ts';
 import { hashPassword } from '../../auth/password.ts';
+import { notFoundHandler } from '../../http/error-handler.ts';
 import { HttpError } from '../../http/errors.ts';
 import { INVALID_BODY_MESSAGE, parseBody, requiredString } from '../../http/validate.ts';
 import {
@@ -85,6 +86,10 @@ export function createFirmRouter({ db }: FirmRouterDeps): Router {
     }
     res.status(204).end();
   });
+
+  // A nested router answers an unhandled OPTIONS itself (200 with an Allow header) when no error is
+  // pending; failing here first keeps every unhandled request on the 404 envelope (no 405).
+  router.use(notFoundHandler);
 
   return router;
 }
