@@ -9,11 +9,13 @@ import type { Employee } from '../../src/server/tenancy/employees.ts';
 import { createTestApp } from '../helpers/app.ts';
 import { userTokenFor } from '../helpers/auth.ts';
 import { TEST_SEED } from '../helpers/db.ts';
+import { createCapturingLogger } from '../helpers/log.ts';
 
 const EMPLOYEES_PATH = '/api/employees';
 // The seed runs at the real current time, so employees created at LATER sort after the seed admins.
 const LATER = '2999-01-01T00:00:00.000Z';
 const DELETED_AT = '2026-09-25T12:00:00.000Z';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const PLATFORM_ADMIN_EMAIL = TEST_SEED.platformAdmin.email;
 const FIRST_ADMIN_EMAIL = TEST_SEED.firms[0].adminEmail;
 const SECOND_ADMIN_EMAIL = TEST_SEED.firms[1].adminEmail;
@@ -22,6 +24,10 @@ const FIRST_MEMBER_EMAIL = 'Member@First.Test';
 const UNAUTHORIZED = { error: { code: 'UNAUTHORIZED', message: expect.any(String) } };
 const FORBIDDEN = { error: { code: 'FORBIDDEN', message: expect.any(String) } };
 const NOT_FOUND = { error: { code: 'NOT_FOUND', message: expect.any(String) } };
+const VALIDATION_ERROR = { error: { code: 'VALIDATION_ERROR', message: expect.any(String) } };
+const CONFLICT = { error: { code: 'CONFLICT', message: expect.any(String) } };
+
+const NEW_EMPLOYEE = { email: 'New@First.Test', password: 'new-secret', role: 'member' };
 
 let app: Express;
 let db: Database.Database;
@@ -85,6 +91,23 @@ function tokenFor(role: Employee['role']): string {
 function getEmployees(path: string, token?: string) {
   const req = request(app).get(`${EMPLOYEES_PATH}${path}`);
   return token === undefined ? req : req.set('Authorization', `Bearer ${token}`);
+}
+
+function createEmployee(body: unknown, token = firstAdminToken()) {
+  const req = request(app).post(EMPLOYEES_PATH).set('Authorization', `Bearer ${token}`);
+  return body === undefined ? req : req.send(body as object);
+}
+
+function login(email: string, password: string) {
+  return request(app).post('/api/auth/login').send({ email, password });
+}
+
+function userCount(): number {
+  return db.prepare<[], { count: number }>('SELECT COUNT(*) AS count FROM users').get()?.count ?? 0;
+}
+
+function softDeleteFirmRow(id: string): void {
+  db.prepare('UPDATE firms SET deleted_at = @at WHERE id = @id').run({ at: DELETED_AT, id });
 }
 
 describe('GET /api/employees', () => {
@@ -200,6 +223,164 @@ describe('GET /api/employees/:id', () => {
   });
 });
 
+describe('POST /api/employees success', () => {
+  it.each(['firm_admin', 'member'] as const)(
+    'answers 201 with exactly the new %s, the email trimmed and in the given casing',
+    async (role) => {
+      const res = await createEmployee({ ...NEW_EMPLOYEE, email: '  New@First.Test  ', role });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toEqual({
+        employee: { id: expect.stringMatching(UUID), email: 'New@First.Test', role },
+      });
+    },
+  );
+
+  it("stores the employee in the caller's firm and lists it last", async () => {
+    const { body } = await createEmployee(NEW_EMPLOYEE).expect(201);
+    const created = { id: body.employee.id, email: 'New@First.Test', role: 'member' };
+
+    const row = db
+      .prepare(
+        'SELECT firm_id AS firmId, email_normalized AS emailNormalized FROM users WHERE id = ?',
+      )
+      .get(created.id);
+    const list = await getEmployees('', firstAdminToken());
+    const one = await getEmployees(`/${created.id}`, firstAdminToken());
+
+    expect(row).toEqual({ firmId: firstFirmId, emailNormalized: 'new@first.test' });
+    expect(list.body.employees.at(-1)).toEqual(created);
+    expect(one.body).toEqual({ employee: created });
+  });
+
+  it('makes an employee who logs in with the untrimmed password and any email casing', async () => {
+    await createEmployee({ ...NEW_EMPLOYEE, password: ' spaced secret ' }).expect(201);
+
+    const res = await login('NEW@FIRST.TEST', ' spaced secret ');
+    const trimmed = await login('new@first.test', 'spaced secret');
+
+    expect(res.status).toBe(200);
+    expect(res.body.user).toEqual({
+      id: expect.stringMatching(UUID),
+      email: 'New@First.Test',
+      role: 'member',
+      firmId: firstFirmId,
+    });
+    expect(trimmed.status).toBe(401);
+  });
+
+  it('reuses the email of a soft-deleted employee', async () => {
+    softDeleteUser(addEmployee(secondFirmId, 'new@first.test'));
+
+    const res = await createEmployee(NEW_EMPLOYEE);
+
+    expect(res.status).toBe(201);
+  });
+});
+
+describe('POST /api/employees failure', () => {
+  it('answers 401 without a token', async () => {
+    const res = await request(app).post(EMPLOYEES_PATH).send(NEW_EMPLOYEE);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(UNAUTHORIZED);
+  });
+
+  it.each([
+    { label: 'no body', body: undefined },
+    { label: 'an array body', body: [NEW_EMPLOYEE] },
+    { label: 'a missing email', body: { password: 'new-secret', role: 'member' } },
+    { label: 'a non-string email', body: { ...NEW_EMPLOYEE, email: 42 } },
+    { label: 'a blank email', body: { ...NEW_EMPLOYEE, email: '   ' } },
+    { label: 'an email without @', body: { ...NEW_EMPLOYEE, email: 'new.first.test' } },
+    { label: 'an email with a space', body: { ...NEW_EMPLOYEE, email: 'new user@first.test' } },
+    { label: 'a missing password', body: { email: 'New@First.Test', role: 'member' } },
+    { label: 'a non-string password', body: { ...NEW_EMPLOYEE, password: 42 } },
+    { label: 'a blank password', body: { ...NEW_EMPLOYEE, password: '   ' } },
+    { label: 'a missing role', body: { email: 'New@First.Test', password: 'new-secret' } },
+    { label: 'a non-string role', body: { ...NEW_EMPLOYEE, role: 1 } },
+    { label: 'a blank role', body: { ...NEW_EMPLOYEE, role: '' } },
+    { label: 'a padded role', body: { ...NEW_EMPLOYEE, role: ' member' } },
+    { label: 'an unknown role', body: { ...NEW_EMPLOYEE, role: 'bogus' } },
+    { label: 'the platform_admin role', body: { ...NEW_EMPLOYEE, role: 'platform_admin' } },
+  ])('answers 400 for $label and inserts nothing', async ({ body }) => {
+    const before = userCount();
+
+    const res = await createEmployee(body);
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual(VALIDATION_ERROR);
+    expect(userCount()).toBe(before);
+  });
+
+  it.each([
+    { label: 'an own-firm employee', email: '  zed@FIRST.test  ' },
+    { label: "the other firm's admin", email: 'BOSS@SECOND.TEST' },
+    { label: 'the platform admin', email: 'root@platform.test' },
+  ])('answers 409 for the email of $label and inserts nothing', async ({ email }) => {
+    addEmployee(firstFirmId, 'Zed@First.Test');
+    const before = userCount();
+
+    const res = await createEmployee({ ...NEW_EMPLOYEE, email });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual(CONFLICT);
+    expect(userCount()).toBe(before);
+  });
+
+  it('answers 400, not 409, for an invalid body with a taken email', async () => {
+    const res = await createEmployee({ ...NEW_EMPLOYEE, email: SECOND_ADMIN_EMAIL, role: 'bogus' });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual(VALIDATION_ERROR);
+  });
+
+  it('answers 409 from the unique index when the pre-check misses, and inserts nothing', async () => {
+    // Only the firm row is deleted, so its admin stays active: the pre-check skips users of deleted
+    // firms, but the partial unique index still counts them.
+    softDeleteFirmRow(secondFirmId);
+    const before = userCount();
+
+    const res = await createEmployee({ ...NEW_EMPLOYEE, email: SECOND_ADMIN_EMAIL });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual(CONFLICT);
+    expect(userCount()).toBe(before);
+  });
+
+  it('lets only one of two overlapping creates with the same email succeed', async () => {
+    const before = userCount();
+
+    const [first, second] = await Promise.all([
+      createEmployee(NEW_EMPLOYEE),
+      createEmployee({ ...NEW_EMPLOYEE, email: 'new@first.test', role: 'firm_admin' }),
+    ]);
+
+    expect([first.status, second.status].sort()).toEqual([201, 409]);
+    expect(userCount()).toBe(before + 1);
+  });
+});
+
+describe('POST /api/employees logging', () => {
+  it('never writes the password to the log', async () => {
+    const { logger, output } = createCapturingLogger();
+    const logged = await createTestApp({ logger });
+    const token = userTokenFor(logged.db, FIRST_ADMIN_EMAIL);
+    const post = (body: object) =>
+      request(logged.app).post(EMPLOYEES_PATH).set('Authorization', `Bearer ${token}`).send(body);
+
+    await post({ ...NEW_EMPLOYEE, password: 'secret-for-201' }).expect(201);
+    await post({ ...NEW_EMPLOYEE, role: 'bogus', password: 'secret-for-400' }).expect(400);
+    await post({ ...NEW_EMPLOYEE, password: 'secret-for-409' }).expect(409);
+    logged.db.close();
+
+    expect(output()).toContain('"statusCode":201');
+    expect(output()).toContain('"statusCode":400');
+    expect(output()).toContain('"statusCode":409');
+    expect(output()).not.toContain('secret-for-');
+  });
+});
+
 describe('the firm-admin write guard', () => {
   /** Every user row, to prove a rejected request changed nothing. */
   function usersSnapshot(): unknown[] {
@@ -210,14 +391,12 @@ describe('the firm-admin write guard', () => {
     return request(app)[method](`${EMPLOYEES_PATH}${path}`).set('Authorization', `Bearer ${token}`);
   }
 
-  const VALID_NEW_EMPLOYEE = { email: 'New@First.Test', password: 'new-secret', role: 'member' };
-
   it.each([
     {
       label: 'POST with a valid body',
       method: 'post' as const,
       path: () => '',
-      body: VALID_NEW_EMPLOYEE,
+      body: NEW_EMPLOYEE,
     },
     // Contract §3: a member adding an employee with an invalid body gets 403, not 400.
     {

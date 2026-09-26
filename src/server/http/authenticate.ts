@@ -20,7 +20,8 @@ declare module 'express-serve-static-core' {
 }
 
 const AUTH_REQUIRED_MESSAGE = 'Oturum açmanız gerekiyor.';
-const INVALID_SESSION_MESSAGE = 'Oturumunuz geçersiz veya süresi dolmuş.';
+/** The 401 message for a token that no longer belongs to a live user of a live firm. */
+export const INVALID_SESSION_MESSAGE = 'Oturumunuz geçersiz veya süresi dolmuş.';
 const DISPLAY_TOKEN_MESSAGE = 'Display token yalnız socket bağlantısı için geçerlidir.';
 
 const BEARER_PATTERN = /^Bearer +(\S+)$/i;

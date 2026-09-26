@@ -1,9 +1,10 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { normalizeEmail } from '../../src/server/auth/email.ts';
+import { EMAIL_TAKEN, normalizeEmail } from '../../src/server/auth/email.ts';
 import type { Role } from '../../src/server/auth/tokens.ts';
 import { insertUser } from '../../src/server/modules/platform/users.ts';
+import { FIRM_GONE } from '../../src/server/tenancy/employees.ts';
 import { createTenantScope } from '../../src/server/tenancy/scope.ts';
 import { createSeededDatabase, TEST_SEED } from '../helpers/db.ts';
 
@@ -126,5 +127,86 @@ describe('employees.findById', () => {
       role: 'firm_admin',
     });
     expect(second.findById(userId(FIRST_ADMIN_EMAIL))).toBeUndefined();
+  });
+});
+
+describe('employees.create', () => {
+  const NEW_EMPLOYEE = { email: 'New@First.Test', role: 'member' as const, passwordHash: 'hash' };
+
+  function userCount(): number {
+    return (
+      db.prepare<[], { count: number }>('SELECT COUNT(*) AS count FROM users').get()?.count ?? 0
+    );
+  }
+
+  function softDeleteFirmRow(id: string): void {
+    db.prepare('UPDATE firms SET deleted_at = @at WHERE id = @id').run({ at: DELETED_AT, id });
+  }
+
+  it('inserts an active employee of its own firm and returns exactly id, email and role', () => {
+    const created = createTenantScope(db, firstFirmId).employees.create(LATER, NEW_EMPLOYEE);
+
+    if (typeof created === 'string') throw new Error(`Expected an employee, got ${created}`);
+    expect(created).toEqual({ id: expect.any(String), email: 'New@First.Test', role: 'member' });
+    expect(db.prepare('SELECT * FROM users WHERE id = @id').get({ id: created.id })).toEqual({
+      id: created.id,
+      firm_id: firstFirmId,
+      email: 'New@First.Test',
+      email_normalized: 'new@first.test',
+      password_hash: 'hash',
+      role: 'member',
+      created_at: LATER,
+      updated_at: LATER,
+      deleted_at: null,
+    });
+  });
+
+  it.each([
+    { label: 'an own-firm employee', email: 'BOSS@first.test' },
+    { label: "another firm's employee", email: SECOND_ADMIN_EMAIL },
+    { label: 'the platform admin', email: TEST_SEED.platformAdmin.email },
+  ])('returns EMAIL_TAKEN for the email of $label and writes nothing', ({ email }) => {
+    const before = userCount();
+
+    const created = createTenantScope(db, firstFirmId).employees.create(LATER, {
+      ...NEW_EMPLOYEE,
+      email,
+    });
+
+    expect(created).toBe(EMAIL_TAKEN);
+    expect(userCount()).toBe(before);
+  });
+
+  it('reuses the email of a soft-deleted user', () => {
+    softDeleteUser(addEmployee(secondFirmId, 'new@first.test', EARLIER));
+
+    const created = createTenantScope(db, firstFirmId).employees.create(LATER, NEW_EMPLOYEE);
+
+    expect(created).toEqual({ id: expect.any(String), email: 'New@First.Test', role: 'member' });
+  });
+
+  it('maps a unique-index clash the pre-check missed to EMAIL_TAKEN and writes nothing', () => {
+    // Only the firm row is deleted, so its admin stays active: the pre-check skips users of deleted
+    // firms, but the partial unique index still counts them.
+    softDeleteFirmRow(secondFirmId);
+    const before = userCount();
+
+    const created = createTenantScope(db, firstFirmId).employees.create(LATER, {
+      ...NEW_EMPLOYEE,
+      email: SECOND_ADMIN_EMAIL,
+    });
+
+    expect(created).toBe(EMAIL_TAKEN);
+    expect(userCount()).toBe(before);
+  });
+
+  it('returns FIRM_GONE once its own firm is deleted, before any email check, and writes nothing', () => {
+    softDeleteFirmRow(firstFirmId);
+    const before = userCount();
+    const employees = createTenantScope(db, firstFirmId).employees;
+
+    expect(employees.create(LATER, NEW_EMPLOYEE)).toBe(FIRM_GONE);
+    expect(employees.create(LATER, { ...NEW_EMPLOYEE, email: SECOND_ADMIN_EMAIL })).toBe(FIRM_GONE);
+    expect(userCount()).toBe(before);
   });
 });
