@@ -8,7 +8,9 @@ import { createLoginHandler } from './auth/login.ts';
 import { meHandler } from './auth/me.ts';
 import type { AppConfig } from './config.ts';
 import { createAuthenticate } from './http/authenticate.ts';
+import { requirePlatformAdmin } from './http/authorize.ts';
 import { errorHandler, notFoundHandler } from './http/error-handler.ts';
+import { createFirmRouter } from './modules/platform/firm-routes.ts';
 
 export interface AppDeps {
   logger: Logger;
@@ -39,6 +41,9 @@ export function createApp({ logger, db, config }: AppDeps): express.Express {
   app.post('/api/auth/login', createLoginHandler({ db, config }));
   app.use('/api', createAuthenticate({ db, config }));
   app.get('/api/auth/me', meHandler);
+  // The guard covers every method and subpath under /api/firms, so a firm user gets 403 before
+  // any 404.
+  app.use('/api/firms', requirePlatformAdmin, createFirmRouter({ db }));
 
   // Control UI (production build only). In development Vite serves the UI and proxies API calls.
   if (existsSync(WEB_DIR)) {

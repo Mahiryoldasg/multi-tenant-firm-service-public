@@ -22,6 +22,11 @@ export const errorHandler: ErrorRequestHandler = (err: unknown, req, res, next) 
     return;
   }
 
+  if (isMalformedParam(err)) {
+    sendError(res, 404, 'NOT_FOUND', NOT_FOUND_MESSAGE);
+    return;
+  }
+
   if (isClientError(err)) {
     // Not logged: a body-parser error's `body` holds the raw request text, which can contain a
     // password.
@@ -46,10 +51,17 @@ function sendError(
 // http-errors client errors: a 4xx `status` with `expose: true`. body-parser (behind express.json)
 // raises only these, from malformed JSON and oversized bodies to a corrupt compressed body, which
 // has no `type`. The contract has no 413 or 415, and its 400 covers a broken body, so all of them
-// become 400. Express's router URIError for a malformed percent-encoded param has `status: 400` but
-// no `expose`, so it stays a 500 here; the features that add `:id` routes decide its answer.
+// become 400. The router's malformed-param URIError has no `expose` and is handled before this.
 function isClientError(err: unknown): boolean {
   if (typeof err !== 'object' || err === null) return false;
   const { status, expose } = err as { status?: unknown; expose?: unknown };
   return typeof status === 'number' && status >= 400 && status < 500 && expose === true;
+}
+
+// Express's router throws a URIError with `status: 400` when a route param is not valid
+// percent-encoding (`/api/firms/%E0`). It happens while matching the `:id` route, so after the auth
+// guards, and no resource can have such an id: it answers like any unknown id, 404. Any other
+// URIError is unexpected and stays a 500.
+function isMalformedParam(err: unknown): boolean {
+  return err instanceof URIError && (err as URIError & { status?: unknown }).status === 400;
 }

@@ -22,6 +22,12 @@ function createThrowingApp() {
   app.get('/async-error', async () => {
     throw new Error(INTERNAL_DETAIL);
   });
+  app.get('/param/:id', (req, res) => {
+    res.json({ id: req.params.id });
+  });
+  app.get('/uri-error', () => {
+    throw new URIError(INTERNAL_DETAIL);
+  });
   app.use(notFoundHandler);
   app.use(errorHandler);
   return { app, output };
@@ -57,6 +63,24 @@ describe('errorHandler', () => {
       expect(output()).toContain(INTERNAL_DETAIL);
     },
   );
+
+  it("answers the router's malformed percent-encoded param with the 404 envelope", async () => {
+    const { app } = createThrowingApp();
+
+    const res = await request(app).get('/param/%E0');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: { code: 'NOT_FOUND', message: expect.any(String) } });
+  });
+
+  it('keeps any other URIError a 500', async () => {
+    const { app } = createThrowingApp();
+
+    const res = await request(app).get('/uri-error');
+
+    expect(res.status).toBe(500);
+    expect(res.body).toEqual({ error: { code: 'INTERNAL_ERROR', message: expect.any(String) } });
+  });
 });
 
 describe('notFoundHandler', () => {

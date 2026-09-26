@@ -1,4 +1,6 @@
 import type Database from 'better-sqlite3';
+import { randomUUID } from 'node:crypto';
+import { normalizeEmail } from '../../auth/email.ts';
 import type { Role } from '../../auth/tokens.ts';
 
 /** An active user of a live firm (or the platform admin): identity, role and firm. */
@@ -50,4 +52,26 @@ export function findActiveUserById(db: Database.Database, id: string): ActiveUse
           AND (users.firm_id IS NULL OR firms.deleted_at IS NULL)`,
     )
     .get({ id });
+}
+
+/** A user row to insert. The id is generated and the email normalized on insert. */
+export interface NewUser {
+  firmId: string | null;
+  role: Role;
+  email: string;
+  passwordHash: string;
+}
+
+/**
+ * Inserts a user and returns the new id. It opens no transaction and handles no email conflict: the
+ * caller owns both, so a clash surfaces as the raw unique-constraint error.
+ */
+export function insertUser(db: Database.Database, now: string, user: NewUser): string {
+  const id = randomUUID();
+  db.prepare(
+    `INSERT INTO users
+       (id, firm_id, email, email_normalized, password_hash, role, created_at, updated_at)
+     VALUES (@id, @firmId, @email, @emailNormalized, @passwordHash, @role, @now, @now)`,
+  ).run({ ...user, id, emailNormalized: normalizeEmail(user.email), now });
+  return id;
 }

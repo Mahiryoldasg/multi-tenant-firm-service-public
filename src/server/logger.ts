@@ -7,7 +7,13 @@ export function createLogger(level: string, destination?: DestinationStream): Lo
     {
       level,
       redact: {
-        paths: ['req.headers.authorization', 'password', 'adminPassword', '*.password'],
+        paths: [
+          'req.headers.authorization',
+          'password',
+          'adminPassword',
+          '*.password',
+          '*.adminPassword',
+        ],
         censor: '[redacted]',
       },
     },
