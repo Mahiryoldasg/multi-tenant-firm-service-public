@@ -97,3 +97,8 @@ Format: `- **YYYY-MM-DD · topic** - decision. Why.`
 - **2026-09-27 · No self protection** - a firm admin may demote or delete any employee of their firm, themselves and the last firm admin included (contract note N2). The change applies on their next request: `403` on writes after a demotion, `401` after a deletion.
 - **2026-09-27 · Employee soft delete** - one firm-bound `UPDATE` sets only `deleted_at` and `updated_at`, which frees the email and invalidates the token and login. An unknown, other-firm or already deleted id is `404`, so a repeated `DELETE` or a `PATCH` after it is `404` (contract §3).
 - **2026-09-27 · Swagger later** - the employee routes get their Swagger entries, with `GET /api/employees/:id` marked as an extension (N5), in feature 10. Their Zod body schemas are module-level constants for it to register.
+
+## Fix - Non-object JSON bodies
+
+- **2026-09-27 · Non-strict JSON parsing** - `jsonBodyParser` calls `express.json({ strict: false })`, so a valid JSON body that is not an object or array (`"x"`, `null`, `42`, `true`) reaches `authenticate` and the guards instead of failing in the parser before them (F-07). Contract §3 lets only unparseable JSON skip the `401 → 403 → 404 → 400 → 409` order, and these bodies parse. This narrows the Feature 3 "Authentication order" note: the parser's `400` now covers unparseable, oversized and corrupt bodies only.
+- **2026-09-27 · Non-object bodies meet the schemas** - every handler that reads a body validates it with `parseBody` and a `z.object` schema, so a non-object body now gets `400` with `INVALID_BODY_MESSAGE` after the `401`, `403` and `404` checks. Public login has no guard, so a non-object login body is still `400`, now from its schema. No handler reads `req.body` any other way.
