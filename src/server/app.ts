@@ -12,6 +12,7 @@ import { requirePlatformAdmin } from './http/authorize.ts';
 import { errorHandler, jsonBodyParser, notFoundHandler } from './http/error-handler.ts';
 import { createRequireTenant } from './http/tenant.ts';
 import { createFirmRouter } from './modules/platform/firm-routes.ts';
+import { createEmployeeRouter } from './modules/tenant/employee-routes.ts';
 
 export interface AppDeps {
   logger: Logger;
@@ -51,8 +52,9 @@ export function createApp({ logger, db, config }: AppDeps): express.Express {
   // any 404.
   app.use('/api/firms', requirePlatformAdmin, createFirmRouter({ db }));
   // The firm-context prefixes (contract §3): the platform admin gets 403 on every method and subpath
-  // before any 404, and firm users get `req.tenant`. Features 6 and 7 mount their routers after this.
+  // before any 404, and firm users get `req.tenant`. Tenant routers mount after this, with no `db`.
   app.use(['/api/employees', '/api/mode', '/api/display-tokens'], createRequireTenant({ db }));
+  app.use('/api/employees', createEmployeeRouter());
 
   // Control UI (production build only). In development Vite serves the UI and proxies API calls.
   if (existsSync(WEB_DIR)) {
