@@ -9,7 +9,7 @@ import { meHandler } from './auth/me.ts';
 import type { AppConfig } from './config.ts';
 import { createAuthenticate } from './http/authenticate.ts';
 import { requirePlatformAdmin } from './http/authorize.ts';
-import { errorHandler, notFoundHandler } from './http/error-handler.ts';
+import { errorHandler, jsonBodyParser, notFoundHandler } from './http/error-handler.ts';
 import { createRequireTenant } from './http/tenant.ts';
 import { createFirmRouter } from './modules/platform/firm-routes.ts';
 
@@ -36,7 +36,7 @@ export function createApp({ logger, db, config }: AppDeps): express.Express {
   const app = express();
   app.disable('x-powered-by');
   app.use(pinoHttp({ logger }));
-  app.use(express.json());
+  app.use(jsonBodyParser);
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
