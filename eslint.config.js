@@ -24,6 +24,25 @@ export default defineConfig(
       '@typescript-eslint/consistent-type-imports': 'error',
     },
   },
-  // Tenancy boundary (build-plan item 5) is added here as a `no-restricted-imports` rule.
+  // Tenancy boundary: tenant route code gets its data only through `req.tenant`, so it may not import
+  // the database driver, a db module or a platform module. Patterns match the relative specifiers
+  // from any folder depth; type-only imports and re-exports are reported too.
+  {
+    files: ['src/server/modules/tenant/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['better-sqlite3', '**/db/**', '**/platform/**'],
+              message:
+                'Tenant code reads data only through req.tenant (getTenant): no database driver, db module or platform module.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );
