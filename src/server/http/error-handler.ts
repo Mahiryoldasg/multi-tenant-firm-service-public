@@ -5,7 +5,10 @@ const NOT_FOUND_MESSAGE = 'Kaynak bulunamadı.';
 const UNREADABLE_BODY_MESSAGE = 'İstek gövdesi okunamadı.';
 const INTERNAL_ERROR_MESSAGE = 'Beklenmeyen bir hata oluştu.';
 
-const parseJson = express.json();
+// Not strict: a valid JSON body that is not an object (`"x"`, `null`, `42`) must reach the guards,
+// because only unparseable JSON may skip the 401 → 403 → 404 order (contract §3). The handlers'
+// object schemas then answer it with 400.
+const parseJson = express.json({ strict: false });
 
 /**
  * `express.json()`, with its client errors turned into the contract's 400 where they arise, so the
