@@ -4,10 +4,11 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 // Lints probe code under virtual file paths with the real eslint.config.js; the files never exist.
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..');
+const TENANT_PROBE = 'src/server/modules/tenant/probe.ts';
 
 // Each probe file with its relative way up to src/server and over to modules/platform.
 const TENANT_FILES = [
-  { file: 'src/server/modules/tenant/probe.ts', server: '../../', platform: '../platform/' },
+  { file: TENANT_PROBE, server: '../../', platform: '../platform/' },
   {
     file: 'src/server/modules/tenant/nested/probe.ts',
     server: '../../../',
@@ -39,8 +40,11 @@ const ALLOWED: Probe[] = [
 
 let eslint: ESLint;
 
-beforeAll(() => {
+beforeAll(async () => {
   eslint = new ESLint({ cwd: REPO_ROOT });
+  // ESLint loads the config and its plugins on the first lint. Doing it here puts that one-time cost
+  // under the hook timeout (10 s) instead of the first case's test timeout (5 s).
+  await eslint.lintText('', { filePath: path.join(REPO_ROOT, TENANT_PROBE) });
 });
 
 /** The boundary rule's messages for `code` linted as `file`; other rules (unused imports) are ignored. */
