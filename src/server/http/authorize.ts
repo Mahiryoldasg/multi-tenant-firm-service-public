@@ -10,3 +10,10 @@ export const requirePlatformAdmin: RequestHandler = (req, _res, next) => {
   if (getAuth(req).role !== 'platform_admin') throw new HttpError('FORBIDDEN', FORBIDDEN_MESSAGE);
   next();
 };
+
+/** Lets only a firm admin through; a member gets 403. Used on the firm-context writes. */
+export const requireFirmAdmin: RequestHandler = (req, _res, next) => {
+  // The DB role of this request, so a demotion applies to a token issued before it.
+  if (getAuth(req).role !== 'firm_admin') throw new HttpError('FORBIDDEN', FORBIDDEN_MESSAGE);
+  next();
+};

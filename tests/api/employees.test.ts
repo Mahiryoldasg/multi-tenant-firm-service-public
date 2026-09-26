@@ -200,6 +200,93 @@ describe('GET /api/employees/:id', () => {
   });
 });
 
+describe('the firm-admin write guard', () => {
+  /** Every user row, to prove a rejected request changed nothing. */
+  function usersSnapshot(): unknown[] {
+    return db.prepare('SELECT * FROM users ORDER BY rowid').all();
+  }
+
+  function write(method: 'post' | 'patch' | 'delete', path: string, token: string) {
+    return request(app)[method](`${EMPLOYEES_PATH}${path}`).set('Authorization', `Bearer ${token}`);
+  }
+
+  const VALID_NEW_EMPLOYEE = { email: 'New@First.Test', password: 'new-secret', role: 'member' };
+
+  it.each([
+    {
+      label: 'POST with a valid body',
+      method: 'post' as const,
+      path: () => '',
+      body: VALID_NEW_EMPLOYEE,
+    },
+    // Contract §3: a member adding an employee with an invalid body gets 403, not 400.
+    {
+      label: 'POST with an invalid body',
+      method: 'post' as const,
+      path: () => '',
+      body: { role: 'x' },
+    },
+    {
+      label: 'PATCH of an own-firm employee',
+      method: 'patch' as const,
+      path: () => `/${userId(FIRST_ADMIN_EMAIL)}`,
+      body: { role: 'member' },
+    },
+    {
+      label: 'DELETE of an own-firm employee',
+      method: 'delete' as const,
+      path: () => `/${userId(FIRST_ADMIN_EMAIL)}`,
+    },
+    {
+      label: "PATCH of another firm's employee with an empty body",
+      method: 'patch' as const,
+      path: () => `/${userId(SECOND_ADMIN_EMAIL)}`,
+      body: {},
+    },
+    {
+      label: "DELETE of another firm's employee",
+      method: 'delete' as const,
+      path: () => `/${userId(SECOND_ADMIN_EMAIL)}`,
+    },
+    {
+      label: 'PATCH of an unknown id',
+      method: 'patch' as const,
+      path: () => `/${randomUUID()}`,
+      body: {},
+    },
+    { label: 'DELETE of an unknown id', method: 'delete' as const, path: () => `/${randomUUID()}` },
+    { label: 'PATCH of a malformed id', method: 'patch' as const, path: () => '/%E0', body: {} },
+    { label: 'DELETE of a malformed id', method: 'delete' as const, path: () => '/%E0' },
+    { label: 'DELETE with no id', method: 'delete' as const, path: () => '' },
+  ])('answers a member 403 for $label and changes nothing', async ({ method, path, body }) => {
+    const token = firstMemberToken();
+    const before = usersSnapshot();
+
+    const req = write(method, path(), token);
+    const res = await (body === undefined ? req : req.send(body));
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual(FORBIDDEN);
+    expect(usersSnapshot()).toEqual(before);
+  });
+
+  // Both stay 404 once the PATCH and DELETE routes exist: the scoped lookup answers before the body.
+  it("lets a firm admin through: PATCH of another firm's employee with an empty body is 404", async () => {
+    // Contract §3: another firm's employee with an empty body gets 404, not 400.
+    const res = await write('patch', `/${userId(SECOND_ADMIN_EMAIL)}`, firstAdminToken()).send({});
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(NOT_FOUND);
+  });
+
+  it('lets a firm admin through: DELETE of an unknown id is 404', async () => {
+    const res = await write('delete', `/${randomUUID()}`, firstAdminToken());
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(NOT_FOUND);
+  });
+});
+
 describe('unhandled employee requests', () => {
   it('answers OPTIONS /api/employees with the 404 envelope, not an Allow header', async () => {
     const res = await request(app)
