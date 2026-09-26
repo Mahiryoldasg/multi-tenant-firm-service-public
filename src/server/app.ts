@@ -10,6 +10,7 @@ import type { AppConfig } from './config.ts';
 import { createAuthenticate } from './http/authenticate.ts';
 import { requirePlatformAdmin } from './http/authorize.ts';
 import { errorHandler, notFoundHandler } from './http/error-handler.ts';
+import { createRequireTenant } from './http/tenant.ts';
 import { createFirmRouter } from './modules/platform/firm-routes.ts';
 
 export interface AppDeps {
@@ -44,6 +45,9 @@ export function createApp({ logger, db, config }: AppDeps): express.Express {
   // The guard covers every method and subpath under /api/firms, so a firm user gets 403 before
   // any 404.
   app.use('/api/firms', requirePlatformAdmin, createFirmRouter({ db }));
+  // The firm-context prefixes (contract §3): the platform admin gets 403 on every method and subpath
+  // before any 404, and firm users get `req.tenant`. Features 6 and 7 mount their routers after this.
+  app.use(['/api/employees', '/api/mode', '/api/display-tokens'], createRequireTenant({ db }));
 
   // Control UI (production build only). In development Vite serves the UI and proxies API calls.
   if (existsSync(WEB_DIR)) {
