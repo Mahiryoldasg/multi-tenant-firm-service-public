@@ -315,3 +315,44 @@ describe('employees.update', () => {
     expect(usersSnapshot()).toEqual(before);
   });
 });
+
+describe('employees.softDelete', () => {
+  function usersSnapshot(): unknown[] {
+    return db.prepare('SELECT * FROM users ORDER BY rowid').all();
+  }
+
+  it('stamps only deleted_at and updated_at of that one employee', () => {
+    const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
+    const before = usersSnapshot();
+
+    const deleted = createTenantScope(db, firstFirmId).employees.softDelete(LATER, member);
+
+    expect(deleted).toBe(true);
+    const expected = before.map((row) =>
+      (row as { id: string }).id === member
+        ? { ...(row as object), deleted_at: LATER, updated_at: LATER }
+        : row,
+    );
+    expect(usersSnapshot()).toEqual(expected);
+  });
+
+  it.each([
+    { label: "another firm's employee", id: () => userId(SECOND_ADMIN_EMAIL) },
+    {
+      label: 'an already deleted employee',
+      id: () => {
+        const gone = addEmployee(firstFirmId, 'Gone@First.Test', EARLIER);
+        softDeleteUser(gone);
+        return gone;
+      },
+    },
+    { label: "the platform admin's id", id: () => userId(TEST_SEED.platformAdmin.email) },
+    { label: 'an unknown id', id: () => randomUUID() },
+  ])('returns false for $label and changes nothing', ({ id }) => {
+    const target = id();
+    const before = usersSnapshot();
+
+    expect(createTenantScope(db, firstFirmId).employees.softDelete(LATER, target)).toBe(false);
+    expect(usersSnapshot()).toEqual(before);
+  });
+});

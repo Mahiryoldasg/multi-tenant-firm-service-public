@@ -103,6 +103,10 @@ function patchEmployee(id: string, body: unknown, token = firstAdminToken()) {
   return body === undefined ? req : req.send(body as object);
 }
 
+function deleteEmployee(id: string, token = firstAdminToken()) {
+  return request(app).delete(`${EMPLOYEES_PATH}/${id}`).set('Authorization', `Bearer ${token}`);
+}
+
 function login(email: string, password: string) {
   return request(app).post('/api/auth/login').send({ email, password });
 }
@@ -594,6 +598,91 @@ describe('PATCH /api/employees/:id failure', () => {
     expect(res.status).toBe(409);
     expect(res.body).toEqual(CONFLICT);
     expect(usersSnapshot()).toEqual(before);
+  });
+});
+
+describe('DELETE /api/employees/:id', () => {
+  it('answers 204 with no body and drops the employee from the list and GET', async () => {
+    const zed = addEmployee(firstFirmId, 'Zed@First.Test');
+
+    const res = await deleteEmployee(zed);
+    const list = await getEmployees('', firstAdminToken());
+    const one = await getEmployees(`/${zed}`, firstAdminToken());
+
+    expect(res.status).toBe(204);
+    expect(res.text).toBe('');
+    expect(list.body.employees.map((employee: { id: string }) => employee.id)).not.toContain(zed);
+    expect(one.status).toBe(404);
+  });
+
+  it('answers 404 to a repeated delete and to a PATCH after it', async () => {
+    const zed = addEmployee(firstFirmId, 'Zed@First.Test');
+    await deleteEmployee(zed).expect(204);
+
+    const again = await deleteEmployee(zed);
+    const patch = await patchEmployee(zed, { role: 'firm_admin' });
+
+    expect(again.status).toBe(404);
+    expect(again.body).toEqual(NOT_FOUND);
+    expect(patch.status).toBe(404);
+    expect(patch.body).toEqual(NOT_FOUND);
+  });
+
+  it.each([
+    { label: "another firm's employee", id: () => userId(SECOND_ADMIN_EMAIL) },
+    { label: 'an unknown id', id: () => randomUUID() },
+    { label: "the platform admin's id", id: () => userId(PLATFORM_ADMIN_EMAIL) },
+    { label: 'a malformed percent-encoded id', id: () => '%E0' },
+  ])('answers 404 for $label and changes nothing', async ({ id }) => {
+    const target = id();
+    const before = usersSnapshot();
+
+    const res = await deleteEmployee(target);
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual(NOT_FOUND);
+    expect(usersSnapshot()).toEqual(before);
+  });
+
+  it("invalidates the deleted employee's token and login", async () => {
+    const { body } = await createEmployee(NEW_EMPLOYEE).expect(201);
+    const { body: session } = await login(NEW_EMPLOYEE.email, NEW_EMPLOYEE.password).expect(200);
+
+    await deleteEmployee(body.employee.id).expect(204);
+    const next = await getEmployees('', session.token);
+    const again = await login(NEW_EMPLOYEE.email, NEW_EMPLOYEE.password);
+
+    expect(next.status).toBe(401);
+    expect(next.body).toEqual(UNAUTHORIZED);
+    expect(again.status).toBe(401);
+  });
+
+  it('frees the email for a new employee, in another casing', async () => {
+    const { body } = await createEmployee(NEW_EMPLOYEE).expect(201);
+    await deleteEmployee(body.employee.id).expect(204);
+
+    const res = await createEmployee({ ...NEW_EMPLOYEE, email: 'NEW@first.test' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.employee.id).not.toBe(body.employee.id);
+  });
+
+  it('lets a firm admin delete themselves, after which their token gets 401', async () => {
+    const token = firstAdminToken();
+
+    const res = await deleteEmployee(userId(FIRST_ADMIN_EMAIL), token);
+    const next = await getEmployees('', token);
+
+    expect(res.status).toBe(204);
+    expect(next.status).toBe(401);
+    expect(next.body).toEqual(UNAUTHORIZED);
+  });
+
+  it('answers 401 without a token', async () => {
+    const res = await request(app).delete(`${EMPLOYEES_PATH}/${userId(FIRST_ADMIN_EMAIL)}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(UNAUTHORIZED);
   });
 });
 

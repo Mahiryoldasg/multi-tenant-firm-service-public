@@ -110,6 +110,15 @@ export function createEmployeeRouter(): Router {
     res.json({ employee });
   });
 
+  router.delete('/:id', (req, res) => {
+    // An unknown, other-firm or already deleted employee is 404: deleting is not idempotent
+    // (contract §3).
+    if (!getTenant(req).employees.softDelete(new Date().toISOString(), req.params.id)) {
+      throw new HttpError('NOT_FOUND', EMPLOYEE_NOT_FOUND_MESSAGE);
+    }
+    res.status(204).end();
+  });
+
   // Like the firm router: keeps every unhandled request, OPTIONS included, on the 404 envelope.
   router.use(notFoundHandler);
 

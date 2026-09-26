@@ -49,6 +49,11 @@ export interface EmployeesRepository {
     id: string,
     changes: EmployeeChanges,
   ): Employee | undefined | typeof EMAIL_TAKEN;
+  /**
+   * Soft-deletes an active employee of this firm, which frees their email and invalidates their
+   * token. Returns false, changing nothing, when there is no such employee.
+   */
+  softDelete(now: string, id: string): boolean;
 }
 
 /** Binds the employee statements to `firmId`; every statement filters on it. */
@@ -159,6 +164,18 @@ export function createEmployeesRepository(
         if (isUniqueViolation(error)) return EMAIL_TAKEN;
         throw error;
       }
+    },
+
+    softDelete(now, id) {
+      const result = db
+        .prepare<{ firmId: string; id: string; now: string }>(
+          `UPDATE users SET deleted_at = @now, updated_at = @now
+            WHERE id = @id
+              AND firm_id = @firmId
+              AND deleted_at IS NULL`,
+        )
+        .run({ firmId, id, now });
+      return result.changes > 0;
     },
   };
 }
