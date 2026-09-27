@@ -3,14 +3,25 @@ import { z } from 'zod';
 import { LOGIN_FAILED_MESSAGE, loginBodySchema } from '../auth/login.ts';
 import { INTERNAL_ERROR_MESSAGE } from '../http/error-handler.ts';
 import { createFirmBodySchema, renameFirmBodySchema } from '../modules/platform/firm-routes.ts';
+import { issueDisplayTokenBodySchema } from '../modules/tenant/display-token-routes.ts';
 import {
+  createEmployeeBodySchema,
+  updateEmployeeBodySchema,
+} from '../modules/tenant/employee-routes.ts';
+import { setModeBodySchema } from '../modules/tenant/mode-routes.ts';
+import {
+  activeModeResponseSchema,
   createFirmResponseSchema,
+  displayTokenResponseSchema,
+  employeeListResponseSchema,
+  employeeResponseSchema,
   errorResponse,
   firmListResponseSchema,
   firmResponseSchema,
   healthResponseSchema,
   loginResponseSchema,
   meResponseSchema,
+  setModeResponseSchema,
 } from './schemas.ts';
 
 const BEARER_AUTH = [{ bearerAuth: [] }];
@@ -23,10 +34,22 @@ const UNAUTHORIZED =
 
 const PLATFORM_ADMIN_ONLY = 'Çağıran platform_admin değil (firm_admin veya member).';
 
-const FIRM_NOT_FOUND =
-  'Firma yok, silinmiş ya da `id` geçersiz. Bu kontrol gövdenin doğrulanmasından önce yapılır.';
+const FIRM_CONTEXT_ONLY =
+  'Çağıran platform_admin: firması olmadığı için firma bağlamındaki tüm yollarda 403 alır.';
+
+const FIRM_ADMIN_ONLY =
+  'Çağıran platform_admin (firma bağlamındaki tüm yollarda 403) ya da member (yazma işlemleri yalnız firm_admin içindir).';
+
+const LOOKUP_BEFORE_BODY = 'Bu kontrol gövdenin doğrulanmasından önce yapılır.';
+
+const FIRM_NOT_FOUND = 'Firma yok, silinmiş ya da `id` geçersiz.';
+
+const EMPLOYEE_NOT_FOUND =
+  'Çalışan yok, silinmiş, başka firmaya ait ya da `id` geçersiz; hepsi aynı yanıtı alır.';
 
 const firmIdParams = z.object({ id: z.string().meta({ description: 'Firma kimliği.' }) });
+
+const employeeIdParams = z.object({ id: z.string().meta({ description: 'Çalışan kimliği.' }) });
 
 const DESCRIPTION = `Çok kiracılı (multi-tenant) firma ve çalışan yönetimi servisi. Dış yüzey, API sözleşmesine uyar.
 
@@ -34,7 +57,9 @@ const DESCRIPTION = `Çok kiracılı (multi-tenant) firma ve çalışan yönetim
 
 **Hatalar.** Her hata \`{ "error": { "code", "message" } }\` şeklindedir. Bir istekte birden fazla sorun varsa sonuç \`401 → 403 → 404 → 400 → 409\` sırasıyla belirlenir. Başka firmanın kaynağı \`404\` döner, asla \`403\` değil. Parse edilemeyen JSON gövdesi bu sıranın dışındadır ve \`400\` alır. Beklenmeyen bir sunucu hatası \`500 INTERNAL_ERROR\` ("${INTERNAL_ERROR_MESSAGE}") döner; bu kod sözleşme dışı bir uzantıdır.
 
-**Uzantılar.** Sözleşmede olmayan işlemlerin özetinde "(uzantı)" yazar: \`GET /api/auth/me\` ve \`GET /health\`.`;
+**Gerçek zamanlı kanal (Socket.IO).** Display istemcisi \`io(url, { auth: { token: <display token> } })\` ile bağlanır. Eksik veya geçersiz token, kullanıcı token'ı ve silinmiş firmanın token'ı \`connect_error\` ile reddedilir. \`POST /api/mode\` her başarılı çağrıda, aynı değer tekrar gönderilse bile, yalnız o firmanın bağlı display'lerine \`mode-change\` event'ini \`{ modeId }\` ile gönderir; başka firmanın display'i bu event'i hiçbir koşulda almaz. Firma silinince bağlı display'lerinin bağlantısı sunucu tarafından kesilir. Bağlanma anında mevcut mod gönderilmez. Socket kanalı OpenAPI ile tanımlanamadığı için yalnız burada anlatılır.
+
+**Uzantılar.** Sözleşmede olmayan işlemlerin özetinde "(uzantı)" yazar: \`GET /api/auth/me\`, \`GET /api/employees/{id}\` ve \`GET /health\`.`;
 
 function registerAuthPaths(registry: OpenAPIRegistry): void {
   registry.registerPath({
@@ -169,7 +194,7 @@ function registerFirmPaths(registry: OpenAPIRegistry): void {
       400: errorResponse(400, 'Gövde bir JSON nesnesi değil ya da `name` eksik veya boş.'),
       401: errorResponse(401, UNAUTHORIZED),
       403: errorResponse(403, PLATFORM_ADMIN_ONLY),
-      404: errorResponse(404, FIRM_NOT_FOUND),
+      404: errorResponse(404, `${FIRM_NOT_FOUND} ${LOOKUP_BEFORE_BODY}`),
     },
   });
 
@@ -191,6 +216,212 @@ function registerFirmPaths(registry: OpenAPIRegistry): void {
   });
 }
 
+function registerEmployeePaths(registry: OpenAPIRegistry): void {
+  registry.registerPath({
+    method: 'get',
+    path: '/api/employees',
+    tags: ['Çalışanlar'],
+    summary: 'Çalışanları listele',
+    description:
+      'Çağıranın firmasının silinmemiş çalışanları, en eskiden en yeniye. Firmadaki herkes (firm_admin, member).',
+    security: BEARER_AUTH,
+    responses: {
+      200: {
+        description: 'Kendi firmasının çalışanları.',
+        content: { 'application/json': { schema: employeeListResponseSchema } },
+      },
+      401: errorResponse(401, UNAUTHORIZED),
+      403: errorResponse(403, FIRM_CONTEXT_ONLY),
+    },
+  });
+
+  registry.registerPath({
+    method: 'get',
+    path: '/api/employees/{id}',
+    tags: ['Çalışanlar'],
+    summary: 'Çalışanı getir (uzantı)',
+    description:
+      'Sözleşme dışı uzantı (sözleşme notu N5): başka firmanın çalışanının okunamadığı test edilmelidir ve sözleşme `/api/employees/:id` yolunu "tüm metotlarıyla" anar. Firmadaki herkes (firm_admin, member).',
+    security: BEARER_AUTH,
+    request: { params: employeeIdParams },
+    responses: {
+      200: {
+        description: 'Kendi firmasının çalışanı.',
+        content: { 'application/json': { schema: employeeResponseSchema } },
+      },
+      401: errorResponse(401, UNAUTHORIZED),
+      403: errorResponse(403, FIRM_CONTEXT_ONLY),
+      404: errorResponse(404, EMPLOYEE_NOT_FOUND),
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/api/employees',
+    tags: ['Çalışanlar'],
+    summary: 'Çalışan ekle',
+    description: `Çağıranın firmasına çalışan ekler. \`role\` yalnız \`firm_admin\` veya \`member\` olabilir; platform_admin bu yolla yaratılamaz. E-posta tüm sistemde, büyük/küçük harfe duyarsız olarak benzersizdir ve \`ad@alan\` biçiminde olmalıdır. ${NON_BLANK_RULE} Yalnız firm_admin.`,
+    security: BEARER_AUTH,
+    request: {
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: createEmployeeBodySchema.meta({ id: 'CreateEmployeeRequest' }),
+            example: { email: 'ayse@acme.local', password: 'Calisan!2026', role: 'member' },
+          },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: 'Eklenen çalışan.',
+        content: { 'application/json': { schema: employeeResponseSchema } },
+      },
+      400: errorResponse(
+        400,
+        'Gövde bir JSON nesnesi değil; `email`, `password` veya `role` eksik veya boş; `email` geçerli değil; ya da `role` `firm_admin` veya `member` değil.',
+      ),
+      401: errorResponse(401, UNAUTHORIZED),
+      403: errorResponse(403, FIRM_ADMIN_ONLY),
+      409: errorResponse(409, 'E-posta başka bir aktif kullanıcıda kayıtlı.'),
+    },
+  });
+
+  registry.registerPath({
+    method: 'patch',
+    path: '/api/employees/{id}',
+    tags: ['Çalışanlar'],
+    summary: 'Çalışanı güncelle',
+    description:
+      "`email` ve `role` alanlarından en az biri gönderilmelidir; diğer alanlar (`password` ve `firmId` dahil) yok sayılır. Alan kuralları `POST` ile aynıdır. Rol değişikliği çalışanın mevcut token'ına sonraki istekte yansır. Yalnız firm_admin.",
+    security: BEARER_AUTH,
+    request: {
+      params: employeeIdParams,
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: updateEmployeeBodySchema.meta({ id: 'UpdateEmployeeRequest' }),
+            example: { role: 'firm_admin' },
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Güncellenen çalışan.',
+        content: { 'application/json': { schema: employeeResponseSchema } },
+      },
+      400: errorResponse(
+        400,
+        'Gövde bir JSON nesnesi değil; güncellenecek alan yok; `email` boş veya geçerli değil; ya da `role` geçerli değil.',
+      ),
+      401: errorResponse(401, UNAUTHORIZED),
+      403: errorResponse(403, FIRM_ADMIN_ONLY),
+      404: errorResponse(404, `${EMPLOYEE_NOT_FOUND} ${LOOKUP_BEFORE_BODY}`),
+      409: errorResponse(409, 'Yeni e-posta başka bir aktif kullanıcıda kayıtlı.'),
+    },
+  });
+
+  registry.registerPath({
+    method: 'delete',
+    path: '/api/employees/{id}',
+    tags: ['Çalışanlar'],
+    summary: 'Çalışanı sil',
+    description:
+      "Soft delete: çalışanın token'ı ve login'i geçersizleşir, e-postası yeniden kullanılabilir. Silme idempotent değildir: silinmiş çalışana tekrar `DELETE` veya `PATCH` → `404`. Yalnız firm_admin.",
+    security: BEARER_AUTH,
+    request: { params: employeeIdParams },
+    responses: {
+      204: { description: 'Silindi; gövde yok.' },
+      401: errorResponse(401, UNAUTHORIZED),
+      403: errorResponse(403, FIRM_ADMIN_ONLY),
+      404: errorResponse(404, EMPLOYEE_NOT_FOUND),
+    },
+  });
+}
+
+function registerModeAndDisplayTokenPaths(registry: OpenAPIRegistry): void {
+  registry.registerPath({
+    method: 'get',
+    path: '/api/mode',
+    tags: ['Mod'],
+    summary: 'Aktif modu getir',
+    description:
+      'Çağıranın firmasının aktif modu; hiç mod seçilmediyse `null`. Firmadaki herkes (firm_admin, member).',
+    security: BEARER_AUTH,
+    responses: {
+      200: {
+        description: 'Firmanın aktif modu.',
+        content: { 'application/json': { schema: activeModeResponseSchema } },
+      },
+      401: errorResponse(401, UNAUTHORIZED),
+      403: errorResponse(403, FIRM_CONTEXT_ONLY),
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/api/mode',
+    tags: ['Mod'],
+    summary: 'Aktif modu ayarla',
+    description:
+      "`modeId` opak bir string'dir: boş olmayan her değer olduğu gibi (kırpılmadan) saklanır; mod listesi veya doğrulaması yoktur. Her başarılı çağrıda, aynı değer tekrar gönderilse bile, yalnız bu firmanın bağlı display'lerine Socket.IO `mode-change` event'i `{ modeId }` ile gider. Yalnız firm_admin.",
+    security: BEARER_AUTH,
+    request: {
+      body: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: setModeBodySchema.meta({ id: 'SetModeRequest' }),
+            example: { modeId: 'welcome-screen' },
+          },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Saklanan aktif mod.',
+        content: { 'application/json': { schema: setModeResponseSchema } },
+      },
+      400: errorResponse(400, 'Gövde bir JSON nesnesi değil ya da `modeId` eksik veya boş.'),
+      401: errorResponse(401, UNAUTHORIZED),
+      403: errorResponse(403, FIRM_ADMIN_ONLY),
+    },
+  });
+
+  registry.registerPath({
+    method: 'post',
+    path: '/api/display-tokens',
+    tags: ['Display token'],
+    summary: 'Display token üret',
+    description:
+      "Bu firmanın display'leri için HS256 token üretir. Claim'leri `{ kind: 'display', firmId }` (ayrıca `iat` ve `jti`); süresi dolmaz. Token yalnız Socket.IO handshake'inde (`auth.token`) geçerlidir; HTTP API'de `401` alır. Onu üreten kullanıcının silinmesinden veya rol değişiminden etkilenmez, yalnız firma silinince geçersizleşir. Gövde isteğe bağlıdır; `label` gönderilirse string olmalıdır. Yalnız firm_admin.",
+    security: BEARER_AUTH,
+    request: {
+      body: {
+        required: false,
+        content: {
+          'application/json': {
+            schema: issueDisplayTokenBodySchema.meta({ id: 'IssueDisplayTokenRequest' }),
+            example: { label: 'Salon A ekranı' },
+          },
+        },
+      },
+    },
+    responses: {
+      201: {
+        description: "Display token'ı.",
+        content: { 'application/json': { schema: displayTokenResponseSchema } },
+      },
+      400: errorResponse(400, 'Gövde bir JSON nesnesi değil ya da `label` string değil.'),
+      401: errorResponse(401, UNAUTHORIZED),
+      403: errorResponse(403, FIRM_ADMIN_ONLY),
+    },
+  });
+}
+
 function createOpenApiDocument() {
   const registry = new OpenAPIRegistry();
 
@@ -204,6 +435,8 @@ function createOpenApiDocument() {
 
   registerAuthPaths(registry);
   registerFirmPaths(registry);
+  registerEmployeePaths(registry);
+  registerModeAndDisplayTokenPaths(registry);
 
   registry.registerPath({
     method: 'get',
@@ -225,6 +458,9 @@ function createOpenApiDocument() {
     tags: [
       { name: 'Kimlik', description: 'Giriş ve oturumdaki kullanıcı.' },
       { name: 'Firmalar', description: 'Platform admin firma yönetimi.' },
+      { name: 'Çalışanlar', description: 'Çağıranın firmasındaki çalışanlar.' },
+      { name: 'Mod', description: 'Firmanın aktif modu.' },
+      { name: 'Display token', description: 'Socket bağlantısı için display token üretimi.' },
       { name: 'Sağlık', description: 'Canlılık kontrolü.' },
     ],
   });

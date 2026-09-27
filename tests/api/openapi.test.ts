@@ -6,6 +6,12 @@ import {
   createFirmBodySchema,
   renameFirmBodySchema,
 } from '../../src/server/modules/platform/firm-routes.ts';
+import { issueDisplayTokenBodySchema } from '../../src/server/modules/tenant/display-token-routes.ts';
+import {
+  createEmployeeBodySchema,
+  updateEmployeeBodySchema,
+} from '../../src/server/modules/tenant/employee-routes.ts';
+import { setModeBodySchema } from '../../src/server/modules/tenant/mode-routes.ts';
 import { OPENAPI_DOCUMENT } from '../../src/server/openapi/document.ts';
 import { createTestApp } from '../helpers/app.ts';
 
@@ -63,6 +69,70 @@ const OPERATIONS: DocumentedOperation[] = [
     statuses: ['204', '401', '403', '404'],
     extension: false,
   },
+  {
+    method: 'get',
+    path: '/api/employees',
+    secured: true,
+    statuses: ['200', '401', '403'],
+    extension: false,
+  },
+  {
+    method: 'get',
+    path: '/api/employees/{id}',
+    secured: true,
+    statuses: ['200', '401', '403', '404'],
+    extension: true,
+  },
+  {
+    method: 'post',
+    path: '/api/employees',
+    secured: true,
+    statuses: ['201', '400', '401', '403', '409'],
+    extension: false,
+    body: {
+      schema: createEmployeeBodySchema,
+      required: true,
+      fields: ['email', 'password', 'role'],
+    },
+  },
+  {
+    method: 'patch',
+    path: '/api/employees/{id}',
+    secured: true,
+    statuses: ['200', '400', '401', '403', '404', '409'],
+    extension: false,
+    body: { schema: updateEmployeeBodySchema, required: true, fields: [] },
+  },
+  {
+    method: 'delete',
+    path: '/api/employees/{id}',
+    secured: true,
+    statuses: ['204', '401', '403', '404'],
+    extension: false,
+  },
+  {
+    method: 'get',
+    path: '/api/mode',
+    secured: true,
+    statuses: ['200', '401', '403'],
+    extension: false,
+  },
+  {
+    method: 'post',
+    path: '/api/mode',
+    secured: true,
+    statuses: ['200', '400', '401', '403'],
+    extension: false,
+    body: { schema: setModeBodySchema, required: true, fields: ['modeId'] },
+  },
+  {
+    method: 'post',
+    path: '/api/display-tokens',
+    secured: true,
+    statuses: ['201', '400', '401', '403'],
+    extension: false,
+    body: { schema: issueDisplayTokenBodySchema, required: false, fields: [] },
+  },
   { method: 'get', path: '/health', secured: false, statuses: ['200'], extension: true },
 ];
 
@@ -113,6 +183,26 @@ describe('GET /openapi.json', () => {
       'INTERNAL_ERROR',
     ]);
   });
+
+  it('holds exactly the 12 contract operations and the 3 extensions', () => {
+    const documented = Object.entries(res.body.paths).flatMap(([path, item]) =>
+      Object.keys(item as object).map((method) => `${method} ${path}`),
+    );
+    expect(documented.sort()).toEqual(
+      OPERATIONS.map(({ method, path }) => `${method} ${path}`).sort(),
+    );
+    expect(OPERATIONS.filter(({ extension }) => extension)).toHaveLength(3);
+  });
+
+  it.each(['CreateEmployeeRequest', 'UpdateEmployeeRequest'])(
+    'allows only firm_admin and member as the role in %s',
+    (name) => {
+      expect(res.body.components.schemas[name].properties.role.enum).toEqual([
+        'firm_admin',
+        'member',
+      ]);
+    },
+  );
 });
 
 describe.each(OPERATIONS)(

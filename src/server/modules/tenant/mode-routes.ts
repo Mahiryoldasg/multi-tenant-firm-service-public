@@ -10,7 +10,7 @@ import { INVALID_BODY_MESSAGE, parseBody, requiredString } from '../../http/vali
 const MODE_ID_REQUIRED_MESSAGE = 'Mod kimliği (modeId) zorunludur.';
 
 // `modeId` is opaque (contract §3): any non-blank string, kept untrimmed. Unknown fields are dropped.
-const setModeBodySchema = z.object(
+export const setModeBodySchema = z.object(
   { modeId: requiredString(MODE_ID_REQUIRED_MESSAGE) },
   { error: INVALID_BODY_MESSAGE },
 );

@@ -45,6 +45,39 @@ export const createFirmResponseSchema = z
 
 export const firmResponseSchema = z.object({ firm: firmSchema }).meta({ id: 'FirmResponse' });
 
+const employeeSchema = z
+  .object({ id: z.string(), email: z.string(), role: z.enum(['firm_admin', 'member']) })
+  .meta({ id: 'Employee' });
+
+export const employeeListResponseSchema = z
+  .object({ employees: z.array(employeeSchema) })
+  .meta({ id: 'EmployeeListResponse' });
+
+export const employeeResponseSchema = z
+  .object({ employee: employeeSchema })
+  .meta({ id: 'EmployeeResponse' });
+
+export const activeModeResponseSchema = z
+  .object({
+    modeId: z
+      .string()
+      .nullable()
+      .meta({ description: 'Opak mod kimliği; hiç mod seçilmediyse null.' }),
+  })
+  .meta({ id: 'ActiveModeResponse' });
+
+export const setModeResponseSchema = z
+  .object({ modeId: z.string() })
+  .meta({ id: 'SetModeResponse' });
+
+export const displayTokenResponseSchema = z
+  .object({
+    token: z
+      .string()
+      .meta({ description: "HS256 display token'ı; yalnız socket handshake'i için." }),
+  })
+  .meta({ id: 'DisplayTokenResponse' });
+
 export const healthResponseSchema = z
   .object({ status: z.literal('ok') })
   .meta({ id: 'HealthResponse' });

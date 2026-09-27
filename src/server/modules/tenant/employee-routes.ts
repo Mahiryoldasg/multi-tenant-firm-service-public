@@ -26,7 +26,7 @@ const emailSchema = requiredString(EMAIL_REQUIRED_MESSAGE).refine(
 // Exact values only: a platform admin cannot be made here, and the role is never trimmed.
 const employeeRoleSchema = z.enum(['firm_admin', 'member'], { error: ROLE_INVALID_MESSAGE });
 
-const createEmployeeBodySchema = z.object(
+export const createEmployeeBodySchema = z.object(
   {
     email: emailSchema,
     password: requiredString(PASSWORD_REQUIRED_MESSAGE),
@@ -36,7 +36,7 @@ const createEmployeeBodySchema = z.object(
 );
 
 // Unknown fields, `password` and `firmId` included, are dropped: neither can change here.
-const updateEmployeeBodySchema = z
+export const updateEmployeeBodySchema = z
   .object(
     { email: emailSchema.optional(), role: employeeRoleSchema.optional() },
     { error: INVALID_BODY_MESSAGE },
