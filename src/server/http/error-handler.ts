@@ -1,7 +1,7 @@
 import express, { type ErrorRequestHandler, type RequestHandler, type Response } from 'express';
 import { type ErrorCode, HttpError } from './errors.ts';
 
-const NOT_FOUND_MESSAGE = 'Kaynak bulunamadı.';
+export const NOT_FOUND_MESSAGE = 'Kaynak bulunamadı.';
 const UNREADABLE_BODY_MESSAGE = 'İstek gövdesi okunamadı.';
 export const INTERNAL_ERROR_MESSAGE = 'Beklenmeyen bir hata oluştu.';
 

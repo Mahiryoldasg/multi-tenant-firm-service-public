@@ -12,7 +12,7 @@ import { INVALID_BODY_MESSAGE, parseBody } from '../../http/validate.ts';
 const LABEL_INVALID_MESSAGE = 'Etiket (label) metin olmalı.';
 
 // `label` is optional; when sent it is any string, stored as sent. `null` is not a string: 400.
-const issueDisplayTokenBodySchema = z.object(
+export const issueDisplayTokenBodySchema = z.object(
   { label: z.string({ error: LABEL_INVALID_MESSAGE }).optional() },
   { error: INVALID_BODY_MESSAGE },
 );
