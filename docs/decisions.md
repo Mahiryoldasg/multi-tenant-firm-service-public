@@ -134,3 +134,16 @@ Format: `- **YYYY-MM-DD · topic** - decision. Why.`
 - **2026-09-27 · Socket.IO options** - `serveClient: false`, since the UI bundles `socket.io-client`, and typed server events pin the `mode-change` payload to `{ modeId: string }`. No CORS options: the UI reaches `/socket.io` on its own origin (Express in production, the Vite proxy in development), and Node clients are not subject to CORS.
 - **2026-09-27 · Delivery barrier in tests** - a test proves a display did not get an event by then sending it one it must get: Socket.IO keeps order per connection, so a leaked event would have arrived first. No sleeps. Displays record their events from before they connect, so a push on connect would be caught.
 - **2026-09-27 · Later features** - the 2+ clients per firm leak matrix and the wider invalidation cases belong to feature 9, and the Swagger text for the socket channel to feature 10.
+
+## Feature 9 - Isolation & contract test matrix
+
+- **2026-09-27 · Tests only** - the feature adds suites and no production code. A failing case against unchanged code would have stopped the step for a separately reviewed fix, never a weaker expectation.
+- **2026-09-27 · Two-firm fixture** - `tests/helpers/two-firms.ts` gives each seed firm its admin and a member created through the real `POST /api/employees`, so every actor can also log in with a password. The cross-tenant, check-order and invalidation suites share it.
+- **2026-09-27 · No side effects on denial** - each cross-tenant case compares every row of `firms`, `users` and `display_tokens` before and after the request, `updated_at` included, so "404 and nothing changed" is proven rather than assumed.
+- **2026-09-27 · 404 that leaks nothing** - another firm's id, an unknown UUID and a soft-deleted id must return byte-identical bodies. It is the one place the tests compare message text, since the identical message is the behavior.
+- **2026-09-27 · Claims never pick the firm** - a validly signed token whose `firmId` and `role` claims name another firm and the platform admin still acts as its DB user; firm ids sent in the body or query are ignored.
+- **2026-09-27 · Check-order ladders** - one table per contract route, 401 → 403 → 404 → 400 → 409, where each rung also carries every fault of the rungs after it. Both §3 examples are named rows.
+- **2026-09-27 · Sentinel barrier by modeId** - the leak test waits until every display has received its firm's own sentinel `modeId` (`vi.waitFor`), not just the next event, because sequence events can still be in flight. Only the last sentinel itself is unchecked for leaks.
+- **2026-09-27 · Boot in process** - seed idempotency is mirrored by repeating `index.ts`'s start-up steps twice on one temporary file and checking through the API, instead of spawning the server or refactoring `index.ts`.
+- **2026-09-27 · Full test titles** - the generated tables register with plain loops and `it(label)`: Vitest quotes `$label` titles and cuts them at 40 characters, which hid the expected status.
+- **2026-09-27 · Checked against broken code** - once each, not committed: dropping the firm filter from the employee lookup failed 22 matrix cases, and broadcasting to every socket failed the leak test.
