@@ -142,3 +142,61 @@ describe('documented response schemas', () => {
     expectDocumented(healthResponseSchema, res.body);
   });
 });
+
+// Where an operation documents its own error message, the example must be the body a client gets
+// for the cause the description lists first.
+describe('operation-specific error examples', () => {
+  const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000';
+
+  interface NotFoundCase {
+    method: 'get' | 'patch' | 'delete';
+    path: string;
+    email: string;
+    body?: object;
+  }
+
+  const NOT_FOUND_CASES: NotFoundCase[] = [
+    { method: 'patch', path: '/api/firms/{id}', email: PLATFORM_ADMIN.email, body: { name: 'X' } },
+    { method: 'delete', path: '/api/firms/{id}', email: PLATFORM_ADMIN.email },
+    { method: 'get', path: '/api/employees/{id}', email: FIRM_ADMIN.email },
+    {
+      method: 'patch',
+      path: '/api/employees/{id}',
+      email: FIRM_ADMIN.email,
+      body: { role: 'member' },
+    },
+    { method: 'delete', path: '/api/employees/{id}', email: FIRM_ADMIN.email },
+  ];
+
+  it.each(NOT_FOUND_CASES)(
+    'match the 404 of $method $path for an unknown id',
+    async ({ method, path, email, body }) => {
+      const { app, db } = await createTestApp();
+      const document = (await request(app).get('/openapi.json')).body;
+
+      const res = await request(app)
+        [method](path.replace('{id}', UNKNOWN_ID))
+        .set('Authorization', `Bearer ${userTokenFor(db, email)}`)
+        .send(body);
+
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual(
+        document.paths[path][method].responses['404'].content['application/json'].example,
+      );
+    },
+  );
+
+  it('match the login 401 for a wrong password', async () => {
+    const { app } = await createTestApp();
+    const document = (await request(app).get('/openapi.json')).body;
+
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: PLATFORM_ADMIN.email, password: 'wrong-password' });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual(
+      document.paths['/api/auth/login'].post.responses['401'].content['application/json'].example,
+    );
+  });
+});

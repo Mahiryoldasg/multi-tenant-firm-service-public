@@ -11,7 +11,7 @@ import { INVALID_BODY_MESSAGE, parseBody, requiredString } from '../../http/vali
 import { FIRM_GONE } from '../../tenancy/employees.ts';
 
 // One message for an unknown, deleted and other-firm id, so a 404 never tells them apart.
-const EMPLOYEE_NOT_FOUND_MESSAGE = 'Çalışan bulunamadı.';
+export const EMPLOYEE_NOT_FOUND_MESSAGE = 'Çalışan bulunamadı.';
 const EMAIL_REQUIRED_MESSAGE = 'E-posta zorunludur.';
 const EMAIL_INVALID_MESSAGE = 'E-posta geçerli değil.';
 const PASSWORD_REQUIRED_MESSAGE = 'Şifre zorunludur.';

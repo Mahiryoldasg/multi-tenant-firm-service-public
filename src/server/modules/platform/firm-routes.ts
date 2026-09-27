@@ -19,7 +19,7 @@ const NAME_REQUIRED_MESSAGE = 'Firma adı zorunludur.';
 const ADMIN_EMAIL_REQUIRED_MESSAGE = 'Admin e-postası zorunludur.';
 const ADMIN_EMAIL_INVALID_MESSAGE = 'Admin e-postası geçerli değil.';
 const ADMIN_PASSWORD_REQUIRED_MESSAGE = 'Admin şifresi zorunludur.';
-const FIRM_NOT_FOUND_MESSAGE = 'Firma bulunamadı.';
+export const FIRM_NOT_FOUND_MESSAGE = 'Firma bulunamadı.';
 
 export const createFirmBodySchema = z.object(
   {

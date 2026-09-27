@@ -2,10 +2,15 @@ import { OpenAPIRegistry, OpenApiGeneratorV31 } from '@asteasolutions/zod-to-ope
 import { z } from 'zod';
 import { LOGIN_FAILED_MESSAGE, loginBodySchema } from '../auth/login.ts';
 import { INTERNAL_ERROR_MESSAGE } from '../http/error-handler.ts';
-import { createFirmBodySchema, renameFirmBodySchema } from '../modules/platform/firm-routes.ts';
+import {
+  createFirmBodySchema,
+  FIRM_NOT_FOUND_MESSAGE,
+  renameFirmBodySchema,
+} from '../modules/platform/firm-routes.ts';
 import { issueDisplayTokenBodySchema } from '../modules/tenant/display-token-routes.ts';
 import {
   createEmployeeBodySchema,
+  EMPLOYEE_NOT_FOUND_MESSAGE,
   updateEmployeeBodySchema,
 } from '../modules/tenant/employee-routes.ts';
 import { setModeBodySchema } from '../modules/tenant/mode-routes.ts';
@@ -221,7 +226,7 @@ function registerFirmPaths(registry: OpenAPIRegistry): void {
       400: errorResponse(400, 'Gövde bir JSON nesnesi değil ya da `name` eksik veya boş.'),
       401: errorResponse(401, UNAUTHORIZED),
       403: errorResponse(403, PLATFORM_ADMIN_ONLY),
-      404: errorResponse(404, `${FIRM_NOT_FOUND} ${LOOKUP_BEFORE_BODY}`),
+      404: errorResponse(404, `${FIRM_NOT_FOUND} ${LOOKUP_BEFORE_BODY}`, FIRM_NOT_FOUND_MESSAGE),
     },
   });
 
@@ -238,7 +243,7 @@ function registerFirmPaths(registry: OpenAPIRegistry): void {
       204: { description: 'Silindi; gövde yok.' },
       401: errorResponse(401, UNAUTHORIZED),
       403: errorResponse(403, PLATFORM_ADMIN_ONLY),
-      404: errorResponse(404, FIRM_NOT_FOUND),
+      404: errorResponse(404, FIRM_NOT_FOUND, FIRM_NOT_FOUND_MESSAGE),
     },
   });
 }
@@ -278,7 +283,7 @@ function registerEmployeePaths(registry: OpenAPIRegistry): void {
       },
       401: errorResponse(401, UNAUTHORIZED),
       403: errorResponse(403, FIRM_CONTEXT_ONLY),
-      404: errorResponse(404, EMPLOYEE_NOT_FOUND),
+      404: errorResponse(404, EMPLOYEE_NOT_FOUND, EMPLOYEE_NOT_FOUND_MESSAGE),
     },
   });
 
@@ -346,7 +351,11 @@ function registerEmployeePaths(registry: OpenAPIRegistry): void {
       ),
       401: errorResponse(401, UNAUTHORIZED),
       403: errorResponse(403, FIRM_ADMIN_ONLY),
-      404: errorResponse(404, `${EMPLOYEE_NOT_FOUND} ${LOOKUP_BEFORE_BODY}`),
+      404: errorResponse(
+        404,
+        `${EMPLOYEE_NOT_FOUND} ${LOOKUP_BEFORE_BODY}`,
+        EMPLOYEE_NOT_FOUND_MESSAGE,
+      ),
       409: errorResponse(409, 'Yeni e-posta başka bir aktif kullanıcıda kayıtlı.'),
     },
   });
@@ -364,7 +373,7 @@ function registerEmployeePaths(registry: OpenAPIRegistry): void {
       204: { description: 'Silindi; gövde yok.' },
       401: errorResponse(401, UNAUTHORIZED),
       403: errorResponse(403, FIRM_ADMIN_ONLY),
-      404: errorResponse(404, EMPLOYEE_NOT_FOUND),
+      404: errorResponse(404, EMPLOYEE_NOT_FOUND, EMPLOYEE_NOT_FOUND_MESSAGE),
     },
   });
 }
