@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { createDisplayTokensRepository, type DisplayTokensRepository } from './display-tokens.ts';
 import { createEmployeesRepository, type EmployeesRepository } from './employees.ts';
 import { createModeRepository, type ModeRepository } from './mode.ts';
 
@@ -10,6 +11,7 @@ import { createModeRepository, type ModeRepository } from './mode.ts';
 export interface TenantScope {
   employees: EmployeesRepository;
   mode: ModeRepository;
+  displayTokens: DisplayTokensRepository;
 }
 
 /** Builds the scope of `firmId`. It runs no query: each method prepares its statement when called. */
@@ -17,5 +19,6 @@ export function createTenantScope(db: Database.Database, firmId: string): Tenant
   return {
     employees: createEmployeesRepository(db, firmId),
     mode: createModeRepository(db, firmId),
+    displayTokens: createDisplayTokensRepository(db, firmId),
   };
 }
