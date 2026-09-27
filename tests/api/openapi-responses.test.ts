@@ -2,6 +2,9 @@ import request from 'supertest';
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import {
+  createFirmResponseSchema,
+  firmListResponseSchema,
+  firmResponseSchema,
   healthResponseSchema,
   loginResponseSchema,
   meResponseSchema,
@@ -47,6 +50,26 @@ describe('documented response schemas', () => {
 
     expect(res.status).toBe(200);
     expectDocumented(meResponseSchema, res.body);
+  });
+
+  it('match the firm list, create and rename responses', async () => {
+    const { app, db } = await createTestApp();
+    const auth = `Bearer ${userTokenFor(db, PLATFORM_ADMIN.email)}`;
+
+    const list = await request(app).get('/api/firms').set('Authorization', auth);
+    const created = await request(app)
+      .post('/api/firms')
+      .set('Authorization', auth)
+      .send({ name: 'Third Firm', adminEmail: 'boss@third.test', adminPassword: 'third-secret' });
+    const renamed = await request(app)
+      .patch(`/api/firms/${created.body.firm.id}`)
+      .set('Authorization', auth)
+      .send({ name: 'Third Firm Renamed' });
+
+    expect([list.status, created.status, renamed.status]).toEqual([200, 201, 200]);
+    expectDocumented(firmListResponseSchema, list.body);
+    expectDocumented(createFirmResponseSchema, created.body);
+    expectDocumented(firmResponseSchema, renamed.body);
   });
 
   it('match the /health response', async () => {

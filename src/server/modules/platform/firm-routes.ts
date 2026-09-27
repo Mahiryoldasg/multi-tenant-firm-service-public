@@ -21,7 +21,7 @@ const ADMIN_EMAIL_INVALID_MESSAGE = 'Admin e-postası geçerli değil.';
 const ADMIN_PASSWORD_REQUIRED_MESSAGE = 'Admin şifresi zorunludur.';
 const FIRM_NOT_FOUND_MESSAGE = 'Firma bulunamadı.';
 
-const createFirmBodySchema = z.object(
+export const createFirmBodySchema = z.object(
   {
     name: requiredString(NAME_REQUIRED_MESSAGE),
     adminEmail: requiredString(ADMIN_EMAIL_REQUIRED_MESSAGE).refine(
@@ -33,7 +33,7 @@ const createFirmBodySchema = z.object(
   { error: INVALID_BODY_MESSAGE },
 );
 
-const renameFirmBodySchema = z.object(
+export const renameFirmBodySchema = z.object(
   { name: requiredString(NAME_REQUIRED_MESSAGE) },
   { error: INVALID_BODY_MESSAGE },
 );

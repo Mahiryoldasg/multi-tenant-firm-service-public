@@ -25,6 +25,26 @@ export const loginResponseSchema = z
 
 export const meResponseSchema = z.object({ user: userSchema }).meta({ id: 'MeResponse' });
 
+const firmSummarySchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    createdAt: z.iso.datetime().meta({ description: 'ISO 8601, saat dilimi belirteciyle.' }),
+  })
+  .meta({ id: 'FirmSummary' });
+
+export const firmListResponseSchema = z
+  .object({ firms: z.array(firmSummarySchema) })
+  .meta({ id: 'FirmListResponse' });
+
+const firmSchema = z.object({ id: z.string(), name: z.string() }).meta({ id: 'Firm' });
+
+export const createFirmResponseSchema = z
+  .object({ firm: firmSchema, admin: z.object({ id: z.string(), email: z.string() }) })
+  .meta({ id: 'CreateFirmResponse' });
+
+export const firmResponseSchema = z.object({ firm: firmSchema }).meta({ id: 'FirmResponse' });
+
 export const healthResponseSchema = z
   .object({ status: z.literal('ok') })
   .meta({ id: 'HealthResponse' });
