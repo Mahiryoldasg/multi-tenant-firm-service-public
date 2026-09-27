@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ApiError, errorMessage } from '../api.ts';
 import { useSession } from '../auth/session.tsx';
@@ -8,6 +8,8 @@ const createdAtFormat = new Intl.DateTimeFormat('tr-TR', {
   dateStyle: 'medium',
   timeStyle: 'short',
 });
+
+const RENAME_KEY = ['firms', 'rename'];
 
 interface FirmRowProps {
   firm: Firm;
@@ -29,12 +31,15 @@ export function FirmRow({ firm, editing, onStartEdit, onEndEdit, onAlert }: Firm
   const [draft, setDraft] = useState(firm.name);
   const input = useRef<HTMLInputElement>(null);
   const firmPath = `/api/firms/${encodeURIComponent(firm.id)}`;
+  // While any row's rename is pending, no row may take over edit mode, so its result can show.
+  const renamePending = useIsMutating({ mutationKey: RENAME_KEY }) > 0;
 
   function refreshFirms() {
     return queryClient.invalidateQueries({ queryKey: ['firms'] });
   }
 
   const rename = useMutation({
+    mutationKey: RENAME_KEY,
     mutationFn: () => request(firmPath, { method: 'PATCH', body: { name: draft } }),
     onSuccess: async () => {
       // Leaves edit mode only once the list shows the new name.
@@ -75,7 +80,8 @@ export function FirmRow({ firm, editing, onStartEdit, onEndEdit, onAlert }: Firm
   }
 
   function handleRenameKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === 'Escape') onEndEdit();
+    // Like the disabled "Vazgeç": a pending rename keeps edit mode until its result is in.
+    if (event.key === 'Escape' && !rename.isPending) onEndEdit();
   }
 
   function handleDelete() {
@@ -147,7 +153,7 @@ export function FirmRow({ firm, editing, onStartEdit, onEndEdit, onAlert }: Firm
           <button
             type="button"
             onClick={startEdit}
-            disabled={remove.isPending}
+            disabled={remove.isPending || renamePending}
             aria-label={`${firm.name} firmasını yeniden adlandır`}
           >
             Yeniden adlandır
