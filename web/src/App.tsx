@@ -1,31 +1,27 @@
-import { useEffect, useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Route, Routes } from 'react-router';
+import { RoleHome, SessionGate } from './auth/SessionGate.tsx';
+import { SessionProvider } from './auth/session.tsx';
+import { FirmsPage } from './firms/FirmsPage.tsx';
+import { WorkspacePage } from './workspace/WorkspacePage.tsx';
 
-type HealthState = 'checking' | 'ok' | 'down';
+// No automatic retries: a 4xx will not change on a retry, and a 401 must end the session at once.
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
-const HEALTH_LABELS: Record<HealthState, string> = {
-  checking: 'kontrol ediliyor...',
-  ok: 'çalışıyor',
-  down: 'ulaşılamıyor',
-};
-
-// Placeholder shell: replaced by the real control UI in build-plan items 11-13.
 export function App() {
-  const [health, setHealth] = useState<HealthState>('checking');
-
-  useEffect(() => {
-    let active = true;
-    fetch('/health')
-      .then((res) => active && setHealth(res.ok ? 'ok' : 'down'))
-      .catch(() => active && setHealth('down'));
-    return () => {
-      active = false;
-    };
-  }, []);
-
   return (
-    <main>
-      <h1>Firma Yönetim Paneli</h1>
-      <p>API durumu: {HEALTH_LABELS[health]}</p>
-    </main>
+    <QueryClientProvider client={queryClient}>
+      <SessionProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<SessionGate />}>
+              <Route index element={<RoleHome />} />
+              <Route path="firms" element={<FirmsPage />} />
+              <Route path="workspace" element={<WorkspacePage />} />
+            </Route>
+          </Routes>
+        </BrowserRouter>
+      </SessionProvider>
+    </QueryClientProvider>
   );
 }
