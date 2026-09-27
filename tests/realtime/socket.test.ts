@@ -106,7 +106,21 @@ describe('display handshake failure', () => {
     const error = await rejected(connectDisplay(s.url, { token }));
 
     expect(error.message).toBe(INTERNAL_ERROR_MESSAGE);
-    expect(output()).toContain('Display handshake failed');
+    // Parsed rather than matched as text: the capturing logger records from `debug`, so a substring
+    // would also pass at a level the default `info` hides, or without the error.
+    const lines = output()
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(lines.filter(({ msg }) => msg === 'Display handshake failed')).toEqual([
+      expect.objectContaining({
+        level: 50,
+        err: expect.objectContaining({
+          type: 'TypeError',
+          message: 'The database connection is not open',
+        }),
+      }),
+    ]);
     expect(output()).not.toContain(token);
   });
 });

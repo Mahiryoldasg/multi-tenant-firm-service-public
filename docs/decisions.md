@@ -147,3 +147,7 @@ Format: `- **YYYY-MM-DD · topic** - decision. Why.`
 - **2026-09-27 · Boot in process** - seed idempotency is mirrored by repeating `index.ts`'s start-up steps twice on one temporary file and checking through the API, instead of spawning the server or refactoring `index.ts`.
 - **2026-09-27 · Full test titles** - the generated tables register with plain loops and `it(label)`: Vitest quotes `$label` titles and cuts them at 40 characters, which hid the expected status.
 - **2026-09-27 · Checked against broken code** - once each, not committed: dropping the firm filter from the employee lookup failed 22 matrix cases, and broadcasting to every socket failed the leak test.
+
+## Fix - Handshake failure log assertions
+
+- **2026-09-27 · Log assertions prove the level** - a test that proves something is logged parses the captured JSON line and asserts its `level` and fields (here `level: 50` and the `err`), not a substring. The capturing logger records from `debug` and has no redaction, so a substring match also passes at a level the default `info` hides, or without the error (F-01).
