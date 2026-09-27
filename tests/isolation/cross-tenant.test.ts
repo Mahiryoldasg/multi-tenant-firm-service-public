@@ -1,12 +1,18 @@
 import type Database from 'better-sqlite3';
 import type { Express } from 'express';
+import jwt from 'jsonwebtoken';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createTestApp } from '../helpers/app.ts';
+import { verifyToken } from '../../src/server/auth/tokens.ts';
+import { createTestApp, TEST_CONFIG } from '../helpers/app.ts';
+import { TEST_SEED } from '../helpers/db.ts';
 import { type Actor, setUpTwoFirms, type TwoFirms } from '../helpers/two-firms.ts';
 
 const EMPLOYEES_PATH = '/api/employees';
+const MODE_PATH = '/api/mode';
+const DISPLAY_TOKENS_PATH = '/api/display-tokens';
+const FIRMS_PATH = '/api/firms';
 
 const FORBIDDEN = { error: { code: 'FORBIDDEN', message: expect.any(String) } };
 const NOT_FOUND = { error: { code: 'NOT_FOUND', message: expect.any(String) } };
@@ -19,7 +25,12 @@ const SNAPSHOT_QUERIES = [
 ];
 
 type FirmKey = 'first' | 'second';
-type Method = 'get' | 'patch' | 'delete';
+type Method = 'get' | 'post' | 'patch' | 'delete';
+
+const SEED_FIRM_NAMES: Record<FirmKey, string> = {
+  first: TEST_SEED.firms[0].name,
+  second: TEST_SEED.firms[1].name,
+};
 
 let app: Express;
 let db: Database.Database;
@@ -41,6 +52,18 @@ function snapshot(): unknown[][] {
 function send(method: Method, path: string, token: string, body?: object) {
   const req = request(app)[method](path).set('Authorization', `Bearer ${token}`);
   return body === undefined ? req : req.send(body);
+}
+
+async function listedIds(token: string, query = ''): Promise<string[]> {
+  const res = await send('get', `${EMPLOYEES_PATH}${query}`, token);
+  expect(res.status).toBe(200);
+  return (res.body as { employees: { id: string }[] }).employees.map(({ id }) => id);
+}
+
+async function modeOf(token: string, query = ''): Promise<unknown> {
+  const res = await send('get', `${MODE_PATH}${query}`, token);
+  expect(res.status).toBe(200);
+  return res.body;
 }
 
 const DIRECTIONS: { from: FirmKey; to: FirmKey }[] = [
@@ -145,4 +168,171 @@ describe('a 404 that leaks nothing', () => {
       expect(softDeleted.text).toBe(foreign.text);
     },
   );
+});
+
+// Reads with and without another firm's id in the query string: nothing but the token picks a firm.
+const READERS = DIRECTIONS.flatMap(({ from, to }) =>
+  CALLER_ROLES.flatMap((role) =>
+    [false, true].map((withQuery) => ({
+      label: `the ${from} firm's ${role}${withQuery ? ` sending ?firmId of the ${to} firm` : ''}`,
+      from,
+      to,
+      role,
+      withQuery,
+    })),
+  ),
+);
+
+describe("another firm's id in the query or body", () => {
+  function query({ to, withQuery }: { to: FirmKey; withQuery: boolean }): string {
+    return withQuery ? `?firmId=${firms[to].firmId}` : '';
+  }
+
+  it.each(READERS)("$label lists only its own firm's employees", async (row) => {
+    const own = firms[row.from];
+
+    expect(await listedIds(own[row.role].token, query(row))).toEqual([own.admin.id, own.member.id]);
+  });
+
+  it.each(READERS)("$label reads only its own firm's mode", async (row) => {
+    const other = firms[row.to];
+    const set = await send('post', MODE_PATH, other.admin.token, { modeId: `${row.to}-mode` });
+    expect(set.status).toBe(200);
+
+    expect(await modeOf(firms[row.from][row.role].token, query(row))).toEqual({ modeId: null });
+  });
+
+  it.each(DIRECTIONS)(
+    "the $from firm's admin setting the mode with the $to firm's firmId changes only its own firm",
+    async ({ from, to }) => {
+      const own = firms[from];
+      const other = firms[to];
+
+      const res = await send('post', MODE_PATH, own.admin.token, {
+        modeId: 'smuggled',
+        firmId: other.firmId,
+      });
+
+      expect(res.status).toBe(200);
+      expect(await modeOf(own.admin.token)).toEqual({ modeId: 'smuggled' });
+      expect(await modeOf(other.admin.token)).toEqual({ modeId: null });
+    },
+  );
+
+  it.each(DIRECTIONS)(
+    "the $from firm's admin creating an employee with the $to firm's firmId creates it in its own firm",
+    async ({ from, to }) => {
+      const own = firms[from];
+      const other = firms[to];
+
+      const res = await send('post', EMPLOYEES_PATH, own.admin.token, {
+        email: 'Smuggled@Employee.Test',
+        password: 'smuggled-secret',
+        role: 'member',
+        firmId: other.firmId,
+      });
+
+      expect(res.status).toBe(201);
+      const { id } = (res.body as { employee: { id: string } }).employee;
+      expect(await listedIds(own.admin.token)).toContain(id);
+      expect(await listedIds(other.admin.token)).not.toContain(id);
+    },
+  );
+
+  it.each(DIRECTIONS)(
+    "the $from firm's admin updating its member with the $to firm's firmId keeps them in its own firm",
+    async ({ from, to }) => {
+      const own = firms[from];
+      const other = firms[to];
+
+      const res = await send('patch', `${EMPLOYEES_PATH}/${own.member.id}`, own.admin.token, {
+        role: 'firm_admin',
+        firmId: other.firmId,
+      });
+
+      expect(res.status).toBe(200);
+      expect(await listedIds(own.admin.token)).toContain(own.member.id);
+      expect(await listedIds(other.admin.token)).not.toContain(own.member.id);
+    },
+  );
+
+  it.each(DIRECTIONS)(
+    "the $from firm's admin issuing a display token with the $to firm's firmId gets one for its own firm",
+    async ({ from, to }) => {
+      const own = firms[from];
+
+      const res = await send('post', DISPLAY_TOKENS_PATH, own.admin.token, {
+        label: 'lobby',
+        firmId: firms[to].firmId,
+      });
+
+      expect(res.status).toBe(201);
+      const claims = verifyToken((res.body as { token: string }).token, TEST_CONFIG.jwtSecret);
+      expect(claims).toMatchObject({ kind: 'display', firmId: own.firmId });
+    },
+  );
+});
+
+describe('token claims', () => {
+  it("never pick the firm or the role: the user's firm and role come from the DB", async () => {
+    const { first, second } = firms;
+    // Validly signed, but claiming the second firm and the platform admin role for the first
+    // firm's admin.
+    const token = jwt.sign(
+      { sub: first.admin.id, role: 'platform_admin', firmId: second.firmId },
+      TEST_CONFIG.jwtSecret,
+      { algorithm: 'HS256' },
+    );
+
+    expect(await listedIds(token)).toEqual([first.admin.id, first.member.id]);
+    const foreign = await send('get', `${EMPLOYEES_PATH}/${second.admin.id}`, token);
+    expect(foreign.status).toBe(404);
+    expect(foreign.body).toEqual(NOT_FOUND);
+    const firmList = await send('get', FIRMS_PATH, token);
+    expect(firmList.status).toBe(403);
+    expect(firmList.body).toEqual(FORBIDDEN);
+  });
+});
+
+const FIRM_WRITES = DIRECTIONS.flatMap(({ from, to }) =>
+  CALLER_ROLES.flatMap((role) => [
+    {
+      label: `the ${from} firm's ${role} renaming the ${to} firm`,
+      method: 'patch' as const,
+      body: { name: 'Taken Over' },
+      from,
+      to,
+      role,
+    },
+    {
+      label: `the ${from} firm's ${role} deleting the ${to} firm`,
+      method: 'delete' as const,
+      body: undefined,
+      from,
+      to,
+      role,
+    },
+  ]),
+);
+
+describe("another firm's firm routes", () => {
+  it.each(FIRM_WRITES)('$label gets 403 and changes nothing', async (row) => {
+    const target = firms[row.to];
+    const before = snapshot();
+
+    const res = await send(
+      row.method,
+      `${FIRMS_PATH}/${target.firmId}`,
+      firms[row.from][row.role].token,
+      row.body,
+    );
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual(FORBIDDEN);
+    expect(snapshot()).toEqual(before);
+    const listed = await send('get', FIRMS_PATH, firms.platformAdminToken);
+    expect((listed.body as { firms: unknown[] }).firms).toContainEqual(
+      expect.objectContaining({ id: target.firmId, name: SEED_FIRM_NAMES[row.to] }),
+    );
+  });
 });
