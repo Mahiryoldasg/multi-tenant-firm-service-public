@@ -14,10 +14,10 @@ import { toUserResponse, type UserResponse } from './user-response.ts';
 const EMAIL_REQUIRED_MESSAGE = 'E-posta zorunludur.';
 const PASSWORD_REQUIRED_MESSAGE = 'Şifre zorunludur.';
 // One message for every cause, so a failed login never reveals whether the email exists.
-const LOGIN_FAILED_MESSAGE = 'E-posta veya şifre hatalı.';
+export const LOGIN_FAILED_MESSAGE = 'E-posta veya şifre hatalı.';
 
 // No email format check: a malformed email matches no one and gets the ordinary 401.
-const loginBodySchema = z.object(
+export const loginBodySchema = z.object(
   {
     email: requiredString(EMAIL_REQUIRED_MESSAGE),
     password: requiredString(PASSWORD_REQUIRED_MESSAGE),
