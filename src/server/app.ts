@@ -16,6 +16,7 @@ import { createDisplayTokenRouter } from './modules/tenant/display-token-routes.
 import { createEmployeeRouter } from './modules/tenant/employee-routes.ts';
 import { createModeRouter } from './modules/tenant/mode-routes.ts';
 import { OPENAPI_DOCUMENT } from './openapi/document.ts';
+import { swaggerUiAssets, swaggerUiPage } from './openapi/swagger-ui.ts';
 import type { Realtime } from './realtime/realtime.ts';
 
 export interface AppDeps {
@@ -51,6 +52,8 @@ export function createApp({ logger, db, config, realtime }: AppDeps): express.Ex
   app.get('/openapi.json', (_req, res) => {
     res.json(OPENAPI_DOCUMENT);
   });
+  app.use('/docs', swaggerUiAssets);
+  app.get('/docs', swaggerUiPage);
 
   // The only public /api route, so it is registered before `authenticate` guards the rest of /api,
   // including unknown paths (401 before 404).

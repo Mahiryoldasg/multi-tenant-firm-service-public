@@ -1,3 +1,4 @@
+import type { Express } from 'express';
 import request, { type Response } from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { z } from 'zod';
@@ -256,3 +257,53 @@ it.each(OPERATIONS.filter(({ statuses }) => statuses.includes('204')))(
     expect(res.body.paths[path][method].responses['204'].content).toBeUndefined();
   },
 );
+
+describe('Swagger UI at /docs', () => {
+  let app: Express;
+
+  beforeAll(async () => {
+    ({ app } = await createTestApp());
+  });
+
+  it.each([
+    ['/docs', '/docs/'],
+    ['/docs?x=1', '/docs/?x=1'],
+  ])('redirects %s to %s, where the page links its assets from', async (url, location) => {
+    const docs = await request(app).get(url);
+
+    expect(docs.status).toBe(301);
+    expect(docs.headers.location).toBe(location);
+  });
+
+  it('serves the page and every asset it links', async () => {
+    const page = await request(app).get('/docs').redirects(1);
+
+    expect(page.status).toBe(200);
+    expect(page.headers['content-type']).toMatch(/^text\/html/);
+    const links = [...page.text.matchAll(/(?:href|src)="\.\/([^"]+)"/g)].map(([, link]) => link);
+    expect(links).toEqual(
+      expect.arrayContaining(['swagger-ui.css', 'swagger-ui-bundle.js', 'swagger-ui-init.js']),
+    );
+    for (const link of links) {
+      expect((await request(app).get(`/docs/${link}`)).status, link).toBe(200);
+    }
+  });
+
+  it('initializes the UI with this document and a persisted authorization', async () => {
+    const init = await request(app).get('/docs/swagger-ui-init.js');
+
+    expect(init.status).toBe(200);
+    expect(init.text).toContain('"persistAuthorization": true');
+    expect(init.text).toContain('"/api/employees/{id}"');
+  });
+
+  it.each(['post', 'put', 'delete'] as const)(
+    'answers %s /docs with the 404 envelope',
+    async (method) => {
+      const docs = await request(app)[method]('/docs');
+
+      expect(docs.status).toBe(404);
+      expect(docs.body.error.code).toBe('NOT_FOUND');
+    },
+  );
+});
