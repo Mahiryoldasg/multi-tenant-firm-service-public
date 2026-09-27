@@ -29,13 +29,16 @@ export function createModeRouter(): Router {
   // No `:id` to decode here, so a per-route guard still answers a member 403 before any 400.
   router.post('/', requireFirmAdmin, (req, res) => {
     const { modeId } = parseBody(setModeBodySchema, req.body);
+    const tenant = getTenant(req);
 
     // The firm was checked live by `authenticate` and nothing is awaited since, so this is defense
     // in depth: a firm gone by now takes the caller's session with it.
-    if (!getTenant(req).mode.set(new Date().toISOString(), modeId)) {
+    if (!tenant.mode.set(new Date().toISOString(), modeId)) {
       throw new HttpError('UNAUTHORIZED', INVALID_SESSION_MESSAGE);
     }
 
+    // Unconditional (contract §4): the current value again still reaches the displays.
+    tenant.displays.broadcastModeChange(modeId);
     res.json({ modeId });
   });
 

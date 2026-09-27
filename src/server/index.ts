@@ -6,6 +6,7 @@ import { type AppConfig, loadConfig } from './config.ts';
 import { openDatabase } from './db/connection.ts';
 import { seedDatabase } from './db/seed.ts';
 import { createLogger } from './logger.ts';
+import { createRealtime } from './realtime/realtime.ts';
 
 if (existsSync('.env')) process.loadEnvFile('.env');
 
@@ -30,7 +31,10 @@ try {
 }
 logger.info({ dbPath: config.dbPath, seeded }, 'Database ready');
 
-const server = createServer(createApp({ logger, db, config }));
+const realtime = createRealtime({ db, config, logger });
+const server = createServer(createApp({ logger, db, config, realtime }));
+// After the app: engine.io wraps the existing request listener and hands it every non-socket path.
+realtime.io.attach(server);
 
 server.listen(config.port, () => {
   logger.info({ port: config.port }, `Server ready on http://localhost:${config.port}`);
@@ -38,7 +42,8 @@ server.listen(config.port, () => {
 
 function shutdown(signal: NodeJS.Signals): void {
   logger.info({ signal }, 'Shutting down');
-  server.close(() => {
+  // Closes the display sockets, then the HTTP server, which would otherwise wait for them.
+  void realtime.io.close(() => {
     db.close();
     process.exit(0);
   });
