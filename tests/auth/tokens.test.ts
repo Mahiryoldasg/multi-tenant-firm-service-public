@@ -1,6 +1,6 @@
 import jwt, { type JwtPayload } from 'jsonwebtoken';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { signUserToken, verifyToken } from '../../src/server/auth/tokens.ts';
+import { signDisplayToken, signUserToken, verifyToken } from '../../src/server/auth/tokens.ts';
 
 const OPTIONS = { secret: 'test-secret', ttlSeconds: 43200 };
 const FIRM_ADMIN = { id: 'user-1', role: 'firm_admin', firmId: 'firm-1' } as const;
@@ -57,6 +57,41 @@ describe('signUserToken', () => {
     expect(() => jwt.verify(token, 'other-secret', { algorithms: ['HS256'] })).toThrow(
       jwt.JsonWebTokenError,
     );
+  });
+});
+
+describe('signDisplayToken', () => {
+  const DISPLAY_TOKEN = { id: 'token-1', firmId: 'firm-1' };
+
+  it('signs with HS256', () => {
+    const decoded = jwt.decode(signDisplayToken(DISPLAY_TOKEN, OPTIONS.secret), {
+      complete: true,
+    });
+
+    expect(decoded?.header).toEqual({ alg: 'HS256', typ: 'JWT' });
+  });
+
+  it('carries exactly kind, firmId, iat and the row id as jti, with no expiry', () => {
+    const payload = verify(signDisplayToken(DISPLAY_TOKEN, OPTIONS.secret));
+
+    expect(payload).toEqual({
+      kind: 'display',
+      firmId: 'firm-1',
+      iat: expect.any(Number),
+      jti: 'token-1',
+    });
+  });
+
+  it('verifies with the same secret only', () => {
+    const token = signDisplayToken(DISPLAY_TOKEN, OPTIONS.secret);
+
+    expect(verifyToken(token, OPTIONS.secret)).toEqual({
+      kind: 'display',
+      firmId: 'firm-1',
+      iat: expect.any(Number),
+      jti: 'token-1',
+    });
+    expect(verifyToken(token, 'other-secret')).toBeUndefined();
   });
 });
 
