@@ -51,7 +51,29 @@ const firmIdParams = z.object({ id: z.string().meta({ description: 'Firma kimli�
 
 const employeeIdParams = z.object({ id: z.string().meta({ description: 'Çalışan kimliği.' }) });
 
+// The documented .env.example defaults, which a test keeps equal to that file. Not the live SEED_*
+// config: that would publish whatever admin passwords are configured on this public page.
+const SEED_LOGIN_EXAMPLES = {
+  platformAdmin: {
+    summary: 'Platform admin (seed)',
+    value: { email: 'admin@platform.local', password: 'PlatformAdmin!2026' },
+  },
+  firm1Admin: {
+    summary: 'Acme Fuarcılık firm_admin (seed)',
+    value: { email: 'admin@acme.local', password: 'AcmeAdmin!2026' },
+  },
+  firm2Admin: {
+    summary: 'Globex Etkinlik firm_admin (seed)',
+    value: { email: 'admin@globex.local', password: 'GlobexAdmin!2026' },
+  },
+};
+
+const SEED_LOGIN_HINT =
+  "Seed hesaplarından birini istek gövdesinin örnek listesinden seçin. Bunlar `.env.example`'daki belgelenmiş varsayılan değerlerdir; `.env`'de `SEED_*` değiştirildiyse o değerleri kullanın. Dönen `token` değerini Authorize düğmesine `Bearer ` öneki olmadan yapıştırın; yetki sayfa yenilense de korunur.";
+
 const DESCRIPTION = `Çok kiracılı (multi-tenant) firma ve çalışan yönetimi servisi. Dış yüzey, API sözleşmesine uyar.
+
+**Hızlı başlangıç.** \`POST /api/auth/login\` işleminde "Try it out" deyin. ${SEED_LOGIN_HINT}
 
 **Kimlik doğrulama.** \`POST /api/auth/login\` dışındaki her \`/api\` isteği \`Authorization: Bearer <token>\` ister. Kullanıcı token'ı HS256 JWT'dir: \`{ sub, role, firmId? }\`; platform_admin'de \`firmId\` yoktur. Rol ve firma her istekte veritabanından okunur: rolü değişen kullanıcının token'ı sonraki istekte yeni rolüyle işlem görür, silinen kullanıcı veya firma \`401\` alır. Display token (\`{ kind: 'display', firmId }\`) yalnız socket bağlantısı içindir; HTTP'de \`401\` döner.
 
@@ -67,11 +89,16 @@ function registerAuthPaths(registry: OpenAPIRegistry): void {
     path: '/api/auth/login',
     tags: ['Kimlik'],
     summary: 'Giriş yap',
-    description: `E-posta ve şifreyi kullanıcı token'ına çevirir. E-posta büyük/küçük harfe duyarsız karşılaştırılır. ${NON_BLANK_RULE}`,
+    description: `E-posta ve şifreyi kullanıcı token'ına çevirir. E-posta büyük/küçük harfe duyarsız karşılaştırılır. ${NON_BLANK_RULE}\n\n${SEED_LOGIN_HINT}`,
     request: {
       body: {
         required: true,
-        content: { 'application/json': { schema: loginBodySchema.meta({ id: 'LoginRequest' }) } },
+        content: {
+          'application/json': {
+            schema: loginBodySchema.meta({ id: 'LoginRequest' }),
+            examples: SEED_LOGIN_EXAMPLES,
+          },
+        },
       },
     },
     responses: {

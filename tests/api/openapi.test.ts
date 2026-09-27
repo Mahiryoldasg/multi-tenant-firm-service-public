@@ -1,4 +1,7 @@
 import type { Express } from 'express';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { parseEnv } from 'node:util';
 import request, { type Response } from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { z } from 'zod';
@@ -257,6 +260,45 @@ it.each(OPERATIONS.filter(({ statuses }) => statuses.includes('204')))(
     expect(res.body.paths[path][method].responses['204'].content).toBeUndefined();
   },
 );
+
+describe('seed-login hints', () => {
+  it('offer the documented .env.example accounts as login examples', () => {
+    const env = parseEnv(
+      readFileSync(path.resolve(import.meta.dirname, '../../.env.example'), 'utf8'),
+    );
+    const seed = (key: string): string => {
+      const value = env[key];
+      if (!value) throw new Error(`.env.example has no ${key}`);
+      return value;
+    };
+    const { examples } =
+      res.body.paths['/api/auth/login'].post.requestBody.content['application/json'];
+
+    expect(examples).toEqual({
+      platformAdmin: {
+        summary: expect.any(String),
+        value: {
+          email: seed('SEED_PLATFORM_ADMIN_EMAIL'),
+          password: seed('SEED_PLATFORM_ADMIN_PASSWORD'),
+        },
+      },
+      firm1Admin: {
+        summary: expect.stringContaining(seed('SEED_FIRM1_NAME')),
+        value: {
+          email: seed('SEED_FIRM1_ADMIN_EMAIL'),
+          password: seed('SEED_FIRM1_ADMIN_PASSWORD'),
+        },
+      },
+      firm2Admin: {
+        summary: expect.stringContaining(seed('SEED_FIRM2_NAME')),
+        value: {
+          email: seed('SEED_FIRM2_ADMIN_EMAIL'),
+          password: seed('SEED_FIRM2_ADMIN_PASSWORD'),
+        },
+      },
+    });
+  });
+});
 
 describe('Swagger UI at /docs', () => {
   let app: Express;
