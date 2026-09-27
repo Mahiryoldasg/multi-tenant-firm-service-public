@@ -45,7 +45,8 @@ export function createDisplayTokensRepository(
             WHERE id = @firmId
               AND deleted_at IS NULL`,
         )
-        .run({ id, firmId, now, ...displayToken });
+        // The caller's object first, so a stray key can never override the values bound here.
+        .run({ ...displayToken, id, firmId, now });
       return result.changes === 1 ? { id, firmId } : undefined;
     },
   };
