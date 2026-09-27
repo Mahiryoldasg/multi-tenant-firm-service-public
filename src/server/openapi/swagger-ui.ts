@@ -9,9 +9,9 @@ const OPTIONS = {
   swaggerOptions: { persistAuthorization: true },
 };
 
-// The files the page links. Behind them swagger-ui-express serves the whole swagger-ui-dist folder
-// for any method, including its stock index.html (which loads the Petstore demo) and a plain-text
-// 404 for package.json.
+// The files the page links. Behind them swagger-ui-express serves every swagger-ui-dist file to GET
+// and HEAD, including its stock index.html (which loads the Petstore demo), and answers any method
+// on a path ending in /swagger-ui-init.js (the script) or /package.json (a plain-text 404).
 const PAGE_ASSETS = new Set([
   '/swagger-ui.css',
   '/swagger-ui-bundle.js',
