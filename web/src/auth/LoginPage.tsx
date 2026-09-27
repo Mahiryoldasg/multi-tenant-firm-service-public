@@ -9,7 +9,7 @@ interface LoginResponse {
 }
 
 export function LoginPage() {
-  const { signIn } = useSession();
+  const { signIn, notice, clearNotice } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
@@ -25,12 +25,18 @@ export function LoginPage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    clearNotice();
     login.mutate();
   }
 
   return (
     <main className="login">
       <h1>Firma Yönetim Paneli</h1>
+      {notice && (
+        <p className="notice" role="status">
+          {notice}
+        </p>
+      )}
       <form
         className="form"
         noValidate

@@ -71,3 +71,10 @@ button {
 .error {
   color: #b91c1c;
 }
+
+.notice {
+  padding: 8px 12px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+}

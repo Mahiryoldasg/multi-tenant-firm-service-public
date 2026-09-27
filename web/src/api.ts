@@ -1,4 +1,5 @@
 export const FORBIDDEN_TEXT = 'Bu işlem için yetkiniz yok.';
+export const SESSION_EXPIRED_TEXT = 'Oturumunuz sona erdi. Lütfen tekrar giriş yapın.';
 export const NETWORK_ERROR_TEXT = 'Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.';
 export const UNEXPECTED_ERROR_TEXT = 'Beklenmeyen bir hata oluştu.';
 

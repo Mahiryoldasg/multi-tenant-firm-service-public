@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes } from 'react-router';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
+import { RequireRole } from './auth/RequireRole.tsx';
 import { RoleHome, SessionGate } from './auth/SessionGate.tsx';
 import { SessionProvider } from './auth/session.tsx';
 import { FirmsPage } from './firms/FirmsPage.tsx';
@@ -16,9 +17,25 @@ export function App() {
           <Routes>
             <Route path="/" element={<SessionGate />}>
               <Route index element={<RoleHome />} />
-              <Route path="firms" element={<FirmsPage />} />
-              <Route path="workspace" element={<WorkspacePage />} />
+              <Route
+                path="firms"
+                element={
+                  <RequireRole roles={['platform_admin']}>
+                    <FirmsPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="workspace"
+                element={
+                  <RequireRole roles={['firm_admin', 'member']}>
+                    <WorkspacePage />
+                  </RequireRole>
+                }
+              />
             </Route>
+            {/* Anything else goes home, where the gate shows the login form or the role home. */}
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
       </SessionProvider>

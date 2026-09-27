@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useState, type ReactNode } from 'react';
-import { apiRequest, type ApiRequestOptions } from '../api.ts';
+import { ApiError, apiRequest, SESSION_EXPIRED_TEXT, type ApiRequestOptions } from '../api.ts';
 
 const TOKEN_KEY = 'firm-service.token';
 
@@ -16,9 +16,12 @@ export interface User {
 
 interface Session {
   token: string | null;
+  /** Why the last session ended on its own; shown on the login page until the next submit. */
+  notice: string | null;
   signIn: (token: string) => void;
   signOut: () => void;
-  /** An API call with the session's Bearer token. */
+  clearNotice: () => void;
+  /** An API call with the session's Bearer token; a 401 ends the session. */
   request: <T>(path: string, options?: Omit<ApiRequestOptions, 'token'>) => Promise<T>;
 }
 
@@ -28,6 +31,7 @@ const SessionContext = createContext<Session | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [token, setToken] = useState(() => sessionStorage.getItem(TOKEN_KEY));
+  const [notice, setNotice] = useState<string | null>(null);
 
   function storeToken(next: string | null) {
     // Drops every cached response, so the next user never sees the previous user's data.
@@ -37,11 +41,26 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setToken(next);
   }
 
+  async function request<T>(path: string, options?: Omit<ApiRequestOptions, 'token'>): Promise<T> {
+    try {
+      return await apiRequest<T>(path, { ...options, token });
+    } catch (error) {
+      // The token is no longer accepted (expired, or its user or firm was deleted).
+      if (error instanceof ApiError && error.status === 401) {
+        storeToken(null);
+        setNotice(SESSION_EXPIRED_TEXT);
+      }
+      throw error;
+    }
+  }
+
   const session: Session = {
     token,
+    notice,
     signIn: (next) => storeToken(next),
     signOut: () => storeToken(null),
-    request: (path, options) => apiRequest(path, { ...options, token }),
+    clearNotice: () => setNotice(null),
+    request,
   };
 
   return <SessionContext value={session}>{children}</SessionContext>;
