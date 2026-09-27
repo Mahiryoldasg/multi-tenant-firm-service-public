@@ -95,3 +95,15 @@ td {
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
 }
+
+.row-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.row-form .error {
+  flex-basis: 100%;
+  margin: 0;
+}
