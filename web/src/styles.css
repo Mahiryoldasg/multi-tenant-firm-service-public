@@ -78,3 +78,16 @@ button {
   border: 1px solid #bfdbfe;
   color: #1e3a8a;
 }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+th,
+td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
