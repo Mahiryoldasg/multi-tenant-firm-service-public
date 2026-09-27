@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { normalizeEmail } from '../../src/server/auth/email.ts';
 import { createTenantScope } from '../../src/server/tenancy/scope.ts';
 import { createSeededDatabase, TEST_SEED } from '../helpers/db.ts';
+import { NO_BROADCASTS } from '../helpers/scope.ts';
 
 const CREATED_AT = '2999-01-01T00:00:00.000Z';
 const DELETED_AT = '2026-09-25T12:00:00.000Z';
@@ -52,10 +53,13 @@ describe('displayTokens.create', () => {
   it.each([null, '', '  Lobi  ', 'Lobi ekranı'])(
     'records exactly one row of its own firm with the label %j as given',
     (label) => {
-      const issued = createTenantScope(db, firstFirmId).displayTokens.create(CREATED_AT, {
-        label,
-        createdByUserId: firstAdminId,
-      });
+      const issued = createTenantScope(db, firstFirmId, NO_BROADCASTS).displayTokens.create(
+        CREATED_AT,
+        {
+          label,
+          createdByUserId: firstAdminId,
+        },
+      );
 
       expect(issued).toEqual({ id: expect.stringMatching(UUID), firmId: firstFirmId });
       expect(tokenRows()).toEqual([
@@ -71,7 +75,7 @@ describe('displayTokens.create', () => {
   );
 
   it('gives every token its own id', () => {
-    const { displayTokens } = createTenantScope(db, firstFirmId);
+    const { displayTokens } = createTenantScope(db, firstFirmId, NO_BROADCASTS);
     const token = { label: null, createdByUserId: firstAdminId };
 
     const first = displayTokens.create(CREATED_AT, token);
@@ -82,10 +86,13 @@ describe('displayTokens.create', () => {
   });
 
   it("writes the other firm's tokens only for that firm", () => {
-    const issued = createTenantScope(db, secondFirmId).displayTokens.create(CREATED_AT, {
-      label: 'Sahne',
-      createdByUserId: secondAdminId,
-    });
+    const issued = createTenantScope(db, secondFirmId, NO_BROADCASTS).displayTokens.create(
+      CREATED_AT,
+      {
+        label: 'Sahne',
+        createdByUserId: secondAdminId,
+      },
+    );
 
     expect(issued).toEqual({ id: expect.stringMatching(UUID), firmId: secondFirmId });
     expect(tokenRows()).toEqual([
@@ -103,7 +110,7 @@ describe('displayTokens.create', () => {
       now: '2000-01-01T00:00:00.000Z',
     };
 
-    const issued = createTenantScope(db, firstFirmId).displayTokens.create(
+    const issued = createTenantScope(db, firstFirmId, NO_BROADCASTS).displayTokens.create(
       CREATED_AT,
       withStrayKeys,
     );
@@ -126,10 +133,13 @@ describe('displayTokens.create', () => {
       id: firstFirmId,
     });
 
-    const issued = createTenantScope(db, firstFirmId).displayTokens.create(CREATED_AT, {
-      label: 'Lobi',
-      createdByUserId: firstAdminId,
-    });
+    const issued = createTenantScope(db, firstFirmId, NO_BROADCASTS).displayTokens.create(
+      CREATED_AT,
+      {
+        label: 'Lobi',
+        createdByUserId: firstAdminId,
+      },
+    );
 
     expect(issued).toBeUndefined();
     expect(tokenRows()).toEqual([]);

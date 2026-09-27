@@ -15,11 +15,13 @@ import { createFirmRouter } from './modules/platform/firm-routes.ts';
 import { createDisplayTokenRouter } from './modules/tenant/display-token-routes.ts';
 import { createEmployeeRouter } from './modules/tenant/employee-routes.ts';
 import { createModeRouter } from './modules/tenant/mode-routes.ts';
+import type { Realtime } from './realtime/realtime.ts';
 
 export interface AppDeps {
   logger: Logger;
   db: Database.Database;
   config: Pick<AppConfig, 'jwtSecret' | 'userTokenTtlSeconds'>;
+  realtime: Realtime;
 }
 
 // After `npm run build` this file lives in dist/server, and the Vite build in dist/web.
@@ -35,7 +37,7 @@ export function isBackendPath(urlPath: string): boolean {
   );
 }
 
-export function createApp({ logger, db, config }: AppDeps): express.Express {
+export function createApp({ logger, db, config, realtime }: AppDeps): express.Express {
   const app = express();
   app.disable('x-powered-by');
   app.use(pinoHttp({ logger }));
@@ -55,7 +57,10 @@ export function createApp({ logger, db, config }: AppDeps): express.Express {
   app.use('/api/firms', requirePlatformAdmin, createFirmRouter({ db }));
   // The firm-context prefixes (contract §3): the platform admin gets 403 on every method and subpath
   // before any 404, and firm users get `req.tenant`. Tenant routers mount after this, with no `db`.
-  app.use(['/api/employees', '/api/mode', '/api/display-tokens'], createRequireTenant({ db }));
+  app.use(
+    ['/api/employees', '/api/mode', '/api/display-tokens'],
+    createRequireTenant({ db, realtime }),
+  );
   app.use('/api/employees', createEmployeeRouter());
   app.use('/api/mode', createModeRouter());
   app.use('/api/display-tokens', createDisplayTokenRouter({ config }));

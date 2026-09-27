@@ -13,6 +13,7 @@ import { findActiveUserByEmail, insertUser } from '../../src/server/modules/plat
 import { TEST_CONFIG } from '../helpers/app.ts';
 import { userTokenFor } from '../helpers/auth.ts';
 import { createSeededDatabase, TEST_SEED } from '../helpers/db.ts';
+import { NO_BROADCASTS } from '../helpers/scope.ts';
 
 const PROBE_PATH = '/api/probe';
 const LATER = '2999-01-01T00:00:00.000Z';
@@ -28,7 +29,7 @@ beforeEach(async () => {
   app = express();
   app.use(pinoHttp({ logger: pino({ level: 'silent' }) }));
   app.use('/api', createAuthenticate({ db, config: TEST_CONFIG }));
-  app.use(PROBE_PATH, createRequireTenant({ db }));
+  app.use(PROBE_PATH, createRequireTenant({ db, realtime: NO_BROADCASTS }));
   app.get(PROBE_PATH, (req, res) => {
     res.json(getTenant(req).employees.list());
   });

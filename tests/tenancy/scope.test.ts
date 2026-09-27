@@ -1,12 +1,13 @@
 import type Database from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EMAIL_TAKEN, normalizeEmail } from '../../src/server/auth/email.ts';
 import type { Role } from '../../src/server/auth/tokens.ts';
 import { insertUser } from '../../src/server/modules/platform/users.ts';
 import { FIRM_GONE } from '../../src/server/tenancy/employees.ts';
 import { createTenantScope } from '../../src/server/tenancy/scope.ts';
 import { createSeededDatabase, TEST_SEED } from '../helpers/db.ts';
+import { NO_BROADCASTS } from '../helpers/scope.ts';
 
 // The seed runs at the real current time, so these sort before and after it.
 const EARLIER = '2000-01-01T00:00:00.000Z';
@@ -67,12 +68,12 @@ describe('employees.list', () => {
     softDeleteUser(addEmployee(firstFirmId, 'Gone@First.Test', LATER));
     const other = addEmployee(secondFirmId, 'Other@Second.Test', LATER);
 
-    expect(createTenantScope(db, firstFirmId).employees.list()).toEqual([
+    expect(createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.list()).toEqual([
       { id: earliest, email: 'Earliest@First.Test', role: 'firm_admin' },
       { id: userId(FIRST_ADMIN_EMAIL), email: FIRST_ADMIN_EMAIL, role: 'firm_admin' },
       { id: later, email: 'Later@First.Test', role: 'member' },
     ]);
-    expect(createTenantScope(db, secondFirmId).employees.list()).toEqual([
+    expect(createTenantScope(db, secondFirmId, NO_BROADCASTS).employees.list()).toEqual([
       { id: userId(SECOND_ADMIN_EMAIL), email: SECOND_ADMIN_EMAIL, role: 'firm_admin' },
       { id: other, email: 'Other@Second.Test', role: 'member' },
     ]);
@@ -82,7 +83,7 @@ describe('employees.list', () => {
     const zed = addEmployee(firstFirmId, 'Zed@First.Test', LATER);
     const amy = addEmployee(firstFirmId, 'Amy@First.Test', LATER);
 
-    const ids = createTenantScope(db, firstFirmId)
+    const ids = createTenantScope(db, firstFirmId, NO_BROADCASTS)
       .employees.list()
       .map((employee) => employee.id);
 
@@ -92,7 +93,7 @@ describe('employees.list', () => {
   it('is empty when the firm has no active employee', () => {
     softDeleteUser(userId(FIRST_ADMIN_EMAIL));
 
-    expect(createTenantScope(db, firstFirmId).employees.list()).toEqual([]);
+    expect(createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.list()).toEqual([]);
   });
 });
 
@@ -100,7 +101,7 @@ describe('employees.findById', () => {
   it('finds an active employee of its own firm', () => {
     const member = addEmployee(firstFirmId, 'Member@First.Test', LATER);
 
-    expect(createTenantScope(db, firstFirmId).employees.findById(member)).toEqual({
+    expect(createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.findById(member)).toEqual({
       id: member,
       email: 'Member@First.Test',
       role: 'member',
@@ -110,7 +111,7 @@ describe('employees.findById', () => {
   it('finds nothing outside its own active employees', () => {
     const gone = addEmployee(firstFirmId, 'Gone@First.Test', LATER);
     softDeleteUser(gone);
-    const first = createTenantScope(db, firstFirmId).employees;
+    const first = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees;
 
     expect(first.findById(userId(SECOND_ADMIN_EMAIL))).toBeUndefined();
     expect(first.findById(gone)).toBeUndefined();
@@ -119,7 +120,7 @@ describe('employees.findById', () => {
   });
 
   it("mirrors it for the other firm's scope", () => {
-    const second = createTenantScope(db, secondFirmId).employees;
+    const second = createTenantScope(db, secondFirmId, NO_BROADCASTS).employees;
 
     expect(second.findById(userId(SECOND_ADMIN_EMAIL))).toEqual({
       id: userId(SECOND_ADMIN_EMAIL),
@@ -144,7 +145,10 @@ describe('employees.create', () => {
   }
 
   it('inserts an active employee of its own firm and returns exactly id, email and role', () => {
-    const created = createTenantScope(db, firstFirmId).employees.create(LATER, NEW_EMPLOYEE);
+    const created = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.create(
+      LATER,
+      NEW_EMPLOYEE,
+    );
 
     if (typeof created === 'string') throw new Error(`Expected an employee, got ${created}`);
     expect(created).toEqual({ id: expect.any(String), email: 'New@First.Test', role: 'member' });
@@ -168,7 +172,7 @@ describe('employees.create', () => {
   ])('returns EMAIL_TAKEN for the email of $label and writes nothing', ({ email }) => {
     const before = userCount();
 
-    const created = createTenantScope(db, firstFirmId).employees.create(LATER, {
+    const created = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.create(LATER, {
       ...NEW_EMPLOYEE,
       email,
     });
@@ -180,7 +184,10 @@ describe('employees.create', () => {
   it('reuses the email of a soft-deleted user', () => {
     softDeleteUser(addEmployee(secondFirmId, 'new@first.test', EARLIER));
 
-    const created = createTenantScope(db, firstFirmId).employees.create(LATER, NEW_EMPLOYEE);
+    const created = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.create(
+      LATER,
+      NEW_EMPLOYEE,
+    );
 
     expect(created).toEqual({ id: expect.any(String), email: 'New@First.Test', role: 'member' });
   });
@@ -191,7 +198,7 @@ describe('employees.create', () => {
     softDeleteFirmRow(secondFirmId);
     const before = userCount();
 
-    const created = createTenantScope(db, firstFirmId).employees.create(LATER, {
+    const created = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.create(LATER, {
       ...NEW_EMPLOYEE,
       email: SECOND_ADMIN_EMAIL,
     });
@@ -203,7 +210,7 @@ describe('employees.create', () => {
   it('returns FIRM_GONE once its own firm is deleted, before any email check, and writes nothing', () => {
     softDeleteFirmRow(firstFirmId);
     const before = userCount();
-    const employees = createTenantScope(db, firstFirmId).employees;
+    const employees = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees;
 
     expect(employees.create(LATER, NEW_EMPLOYEE)).toBe(FIRM_GONE);
     expect(employees.create(LATER, { ...NEW_EMPLOYEE, email: SECOND_ADMIN_EMAIL })).toBe(FIRM_GONE);
@@ -213,15 +220,20 @@ describe('employees.create', () => {
   it('keeps its own firm when the caller object carries a stray firmId', () => {
     // A variable, not a fresh literal, so TypeScript lets the extra key through.
     const withStrayFirm = { ...NEW_EMPLOYEE, firmId: secondFirmId };
-    const secondFirmBefore = createTenantScope(db, secondFirmId).employees.list();
+    const secondFirmBefore = createTenantScope(db, secondFirmId, NO_BROADCASTS).employees.list();
 
-    const created = createTenantScope(db, firstFirmId).employees.create(LATER, withStrayFirm);
+    const created = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.create(
+      LATER,
+      withStrayFirm,
+    );
 
     if (typeof created === 'string') throw new Error(`Expected an employee, got ${created}`);
     expect(db.prepare('SELECT firm_id FROM users WHERE id = @id').get({ id: created.id })).toEqual({
       firm_id: firstFirmId,
     });
-    expect(createTenantScope(db, secondFirmId).employees.list()).toEqual(secondFirmBefore);
+    expect(createTenantScope(db, secondFirmId, NO_BROADCASTS).employees.list()).toEqual(
+      secondFirmBefore,
+    );
   });
 });
 
@@ -253,7 +265,11 @@ describe('employees.update', () => {
   ])('changes $label, keeps the rest and stamps updated_at', ({ changes, expected }) => {
     const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
 
-    const updated = createTenantScope(db, firstFirmId).employees.update(LATER, member, changes);
+    const updated = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.update(
+      LATER,
+      member,
+      changes,
+    );
 
     expect(updated).toEqual({ id: member, ...expected });
     expect(userRow(member)).toMatchObject({
@@ -270,9 +286,13 @@ describe('employees.update', () => {
   it("accepts the employee's own email in a new casing", () => {
     const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
 
-    const updated = createTenantScope(db, firstFirmId).employees.update(LATER, member, {
-      email: 'MEMBER@first.test',
-    });
+    const updated = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.update(
+      LATER,
+      member,
+      {
+        email: 'MEMBER@first.test',
+      },
+    );
 
     expect(updated).toEqual({ id: member, email: 'MEMBER@first.test', role: 'member' });
   });
@@ -285,7 +305,11 @@ describe('employees.update', () => {
     const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
     const before = usersSnapshot();
 
-    const updated = createTenantScope(db, firstFirmId).employees.update(LATER, member, { email });
+    const updated = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.update(
+      LATER,
+      member,
+      { email },
+    );
 
     expect(updated).toBe(EMAIL_TAKEN);
     expect(usersSnapshot()).toEqual(before);
@@ -300,9 +324,13 @@ describe('employees.update', () => {
     });
     const before = usersSnapshot();
 
-    const updated = createTenantScope(db, firstFirmId).employees.update(LATER, member, {
-      email: SECOND_ADMIN_EMAIL,
-    });
+    const updated = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.update(
+      LATER,
+      member,
+      {
+        email: SECOND_ADMIN_EMAIL,
+      },
+    );
 
     expect(updated).toBe(EMAIL_TAKEN);
     expect(usersSnapshot()).toEqual(before);
@@ -322,7 +350,7 @@ describe('employees.update', () => {
   ])('returns undefined for $label, even with a taken email, and changes nothing', ({ id }) => {
     const target = id();
     const before = usersSnapshot();
-    const employees = createTenantScope(db, firstFirmId).employees;
+    const employees = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees;
 
     expect(employees.update(LATER, target, { role: 'firm_admin' })).toBeUndefined();
     expect(employees.update(LATER, target, { email: FIRST_ADMIN_EMAIL })).toBeUndefined();
@@ -339,7 +367,10 @@ describe('employees.softDelete', () => {
     const member = addEmployee(firstFirmId, 'Member@First.Test', EARLIER);
     const before = usersSnapshot();
 
-    const deleted = createTenantScope(db, firstFirmId).employees.softDelete(LATER, member);
+    const deleted = createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.softDelete(
+      LATER,
+      member,
+    );
 
     expect(deleted).toBe(true);
     const expected = before.map((row) =>
@@ -366,7 +397,23 @@ describe('employees.softDelete', () => {
     const target = id();
     const before = usersSnapshot();
 
-    expect(createTenantScope(db, firstFirmId).employees.softDelete(LATER, target)).toBe(false);
+    expect(
+      createTenantScope(db, firstFirmId, NO_BROADCASTS).employees.softDelete(LATER, target),
+    ).toBe(false);
     expect(usersSnapshot()).toEqual(before);
+  });
+});
+
+describe('displays.broadcastModeChange', () => {
+  it("broadcasts to the scope's own firm", () => {
+    const realtime = { broadcastModeChange: vi.fn() };
+
+    createTenantScope(db, firstFirmId, realtime).displays.broadcastModeChange('lobby');
+    createTenantScope(db, secondFirmId, realtime).displays.broadcastModeChange('night');
+
+    expect(realtime.broadcastModeChange.mock.calls).toEqual([
+      [firstFirmId, 'lobby'],
+      [secondFirmId, 'night'],
+    ]);
   });
 });

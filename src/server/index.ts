@@ -32,7 +32,7 @@ try {
 logger.info({ dbPath: config.dbPath, seeded }, 'Database ready');
 
 const realtime = createRealtime({ db, config, logger });
-const server = createServer(createApp({ logger, db, config }));
+const server = createServer(createApp({ logger, db, config, realtime }));
 // After the app: engine.io wraps the existing request listener and hands it every non-socket path.
 realtime.io.attach(server);
 

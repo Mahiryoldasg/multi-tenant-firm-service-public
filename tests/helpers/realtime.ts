@@ -5,8 +5,8 @@ import type { AddressInfo } from 'node:net';
 import { pino, type Logger } from 'pino';
 import { io, type Socket } from 'socket.io-client';
 import request from 'supertest';
-import { createRealtime, type Realtime } from '../../src/server/realtime/realtime.ts';
-import { createTestApp, TEST_CONFIG } from './app.ts';
+import type { Realtime } from '../../src/server/realtime/realtime.ts';
+import { createTestApp } from './app.ts';
 import { userTokenFor } from './auth.ts';
 
 const WAIT_MS = 2_000;
@@ -24,8 +24,7 @@ const clients = new Set<Socket>();
 export async function startTestServer({
   logger = pino({ level: 'silent' }),
 }: { logger?: Logger } = {}): Promise<TestServer> {
-  const { app, db } = await createTestApp({ logger });
-  const realtime = createRealtime({ db, config: TEST_CONFIG, logger });
+  const { app, db, realtime } = await createTestApp({ logger });
   const server = createServer(app);
   realtime.io.attach(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
