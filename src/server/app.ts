@@ -12,7 +12,9 @@ import { requirePlatformAdmin } from './http/authorize.ts';
 import { errorHandler, jsonBodyParser, notFoundHandler } from './http/error-handler.ts';
 import { createRequireTenant } from './http/tenant.ts';
 import { createFirmRouter } from './modules/platform/firm-routes.ts';
+import { createDisplayTokenRouter } from './modules/tenant/display-token-routes.ts';
 import { createEmployeeRouter } from './modules/tenant/employee-routes.ts';
+import { createModeRouter } from './modules/tenant/mode-routes.ts';
 
 export interface AppDeps {
   logger: Logger;
@@ -55,6 +57,8 @@ export function createApp({ logger, db, config }: AppDeps): express.Express {
   // before any 404, and firm users get `req.tenant`. Tenant routers mount after this, with no `db`.
   app.use(['/api/employees', '/api/mode', '/api/display-tokens'], createRequireTenant({ db }));
   app.use('/api/employees', createEmployeeRouter());
+  app.use('/api/mode', createModeRouter());
+  app.use('/api/display-tokens', createDisplayTokenRouter({ config }));
 
   // Control UI (production build only). In development Vite serves the UI and proxies API calls.
   if (existsSync(WEB_DIR)) {

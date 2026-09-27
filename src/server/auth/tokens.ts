@@ -25,6 +25,27 @@ export function signUserToken(
 }
 
 /**
+ * Display token claims (contract §2). `jsonwebtoken` adds `iat`, and `jti` is the id of the token's
+ * `display_tokens` row. No `sub` or `role`, so it can never pass for a user token.
+ */
+export interface DisplayTokenClaims {
+  kind: 'display';
+  firmId: string;
+}
+
+/**
+ * Signs an HS256 display token for the socket handshake only. It has no `exp`: it stays valid until
+ * its firm is deleted, whatever happens to the user who issued it.
+ */
+export function signDisplayToken(
+  displayToken: { id: string; firmId: string },
+  secret: string,
+): string {
+  const claims: DisplayTokenClaims = { kind: 'display', firmId: displayToken.firmId };
+  return jwt.sign(claims, secret, { algorithm: 'HS256', jwtid: displayToken.id });
+}
+
+/**
  * Returns the claims of a token signed by us, or `undefined` for any token that fails verification
  * (bad signature, other algorithm, expired, malformed, not a claims object). It does not tell a
  * user token from a display token; callers check the claims they need.
