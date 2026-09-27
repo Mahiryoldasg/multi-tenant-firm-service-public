@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../api.ts';
 import { useSession } from '../auth/session.tsx';
+import { CreateFirmForm } from './CreateFirmForm.tsx';
 
 /** A firm in the `GET /api/firms` response. */
 export interface Firm {
@@ -25,6 +26,7 @@ export function FirmsPage() {
   return (
     <>
       <h1>Firmalar</h1>
+      <CreateFirmForm />
       <section>
         <h2 id="firm-list-heading">Firma listesi</h2>
         {/* A failed refetch keeps the last list below the error. */}

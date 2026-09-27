@@ -72,6 +72,10 @@ button {
   color: #b91c1c;
 }
 
+.success {
+  color: #166534;
+}
+
 .notice {
   padding: 8px 12px;
   background: #eff6ff;
