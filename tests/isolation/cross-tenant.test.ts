@@ -76,26 +76,35 @@ const TARGETS = ['admin', 'member'] as const;
 // Every request on an employee id. The PATCH bodies go from valid to empty to a taken email, so a
 // cross-tenant 404 must win over any 400 or 409 the body would earn on the caller's own firm.
 const ID_REQUESTS: {
-  action: string;
+  verb: string;
+  detail: string;
   method: Method;
   write: boolean;
   body?: (caller: Actor) => object;
 }[] = [
-  { action: 'GETting', method: 'get', write: false },
+  { verb: 'GETting', detail: '', method: 'get', write: false },
   {
-    action: 'PATCHing with a valid body',
+    verb: 'PATCHing',
+    detail: ' with a valid body',
     method: 'patch',
     write: true,
     body: () => ({ role: 'member' }),
   },
-  { action: 'PATCHing with an empty body', method: 'patch', write: true, body: () => ({}) },
   {
-    action: 'PATCHing with a taken email',
+    verb: 'PATCHing',
+    detail: ' with an empty body',
+    method: 'patch',
+    write: true,
+    body: () => ({}),
+  },
+  {
+    verb: 'PATCHing',
+    detail: ' with a taken email',
     method: 'patch',
     write: true,
     body: (caller) => ({ email: caller.email }),
   },
-  { action: 'DELETEing', method: 'delete', write: true },
+  { verb: 'DELETEing', detail: '', method: 'delete', write: true },
 ];
 
 const ID_MATRIX = DIRECTIONS.flatMap(({ from, to }) =>
@@ -105,7 +114,7 @@ const ID_MATRIX = DIRECTIONS.flatMap(({ from, to }) =>
         // A member's write fails on the role first (403); anything else is simply not found.
         const status = idRequest.write && role === 'member' ? 403 : 404;
         return {
-          label: `the ${from} firm's ${role} ${idRequest.action} the ${to} firm's ${target} gets ${status}`,
+          label: `the ${from} firm's ${role} ${idRequest.verb} the ${to} firm's ${target}${idRequest.detail} gets ${status}`,
           from,
           to,
           role,
@@ -118,33 +127,38 @@ const ID_MATRIX = DIRECTIONS.flatMap(({ from, to }) =>
   ),
 );
 
+// Plain loops rather than `each` throughout: Vitest quotes `$label` titles and cuts them at 40
+// characters, which would hide the expected status.
 describe("another firm's employee ids", () => {
-  it.each(ID_MATRIX)('$label and changes nothing', async (row) => {
-    const caller = firms[row.from][row.role];
-    const targetId = firms[row.to][row.target].id;
-    const before = snapshot();
+  for (const row of ID_MATRIX) {
+    it(`${row.label} and changes nothing`, async () => {
+      const caller = firms[row.from][row.role];
+      const targetId = firms[row.to][row.target].id;
+      const before = snapshot();
 
-    const res = await send(
-      row.idRequest.method,
-      `${EMPLOYEES_PATH}/${targetId}`,
-      caller.token,
-      row.idRequest.body?.(caller),
-    );
+      const res = await send(
+        row.idRequest.method,
+        `${EMPLOYEES_PATH}/${targetId}`,
+        caller.token,
+        row.idRequest.body?.(caller),
+      );
 
-    expect(res.status).toBe(row.status);
-    expect(res.body).toEqual(row.status === 403 ? FORBIDDEN : NOT_FOUND);
-    expect(snapshot()).toEqual(before);
-  });
+      expect(res.status).toBe(row.status);
+      expect(res.body).toEqual(row.status === 403 ? FORBIDDEN : NOT_FOUND);
+      expect(snapshot()).toEqual(before);
+    });
+  }
 });
 
 describe('a 404 that leaks nothing', () => {
-  it.each([
-    { label: 'GET', method: 'get' as const, body: undefined },
-    { label: 'PATCH', method: 'patch' as const, body: { role: 'member' } },
-    { label: 'DELETE', method: 'delete' as const, body: undefined },
-  ])(
-    "answers $label for another firm's, an unknown and a deleted id with the same body",
-    async ({ method, body }) => {
+  const requests: { method: Method; body?: object }[] = [
+    { method: 'get' },
+    { method: 'patch', body: { role: 'member' } },
+    { method: 'delete' },
+  ];
+
+  for (const { method, body } of requests) {
+    it(`answers ${method.toUpperCase()} for another firm's, an unknown and a deleted id with the same body`, async () => {
       const { first, second } = firms;
       const deleted = await send(
         'delete',
@@ -166,8 +180,8 @@ describe('a 404 that leaks nothing', () => {
       expect(unknown.text).toBe(foreign.text);
       expect(softDeleted.status).toBe(404);
       expect(softDeleted.text).toBe(foreign.text);
-    },
-  );
+    });
+  }
 });
 
 // Reads with and without another firm's id in the query string: nothing but the token picks a firm.
@@ -188,23 +202,30 @@ describe("another firm's id in the query or body", () => {
     return withQuery ? `?firmId=${firms[to].firmId}` : '';
   }
 
-  it.each(READERS)("$label lists only its own firm's employees", async (row) => {
-    const own = firms[row.from];
+  for (const row of READERS) {
+    it(`${row.label} lists only its own firm's employees`, async () => {
+      const own = firms[row.from];
 
-    expect(await listedIds(own[row.role].token, query(row))).toEqual([own.admin.id, own.member.id]);
-  });
+      expect(await listedIds(own[row.role].token, query(row))).toEqual([
+        own.admin.id,
+        own.member.id,
+      ]);
+    });
 
-  it.each(READERS)("$label reads only its own firm's mode", async (row) => {
-    const other = firms[row.to];
-    const set = await send('post', MODE_PATH, other.admin.token, { modeId: `${row.to}-mode` });
-    expect(set.status).toBe(200);
+    it(`${row.label} reads only its own firm's mode`, async () => {
+      const other = firms[row.to];
+      const set = await send('post', MODE_PATH, other.admin.token, { modeId: `${row.to}-mode` });
+      expect(set.status).toBe(200);
 
-    expect(await modeOf(firms[row.from][row.role].token, query(row))).toEqual({ modeId: null });
-  });
+      expect(await modeOf(firms[row.from][row.role].token, query(row))).toEqual({ modeId: null });
+    });
+  }
 
-  it.each(DIRECTIONS)(
-    "the $from firm's admin setting the mode with the $to firm's firmId changes only its own firm",
-    async ({ from, to }) => {
+  for (const { from, to } of DIRECTIONS) {
+    const caller = `the ${from} firm's admin`;
+    const smuggled = `the ${to} firm's firmId`;
+
+    it(`${caller} setting the mode with ${smuggled} changes only its own firm`, async () => {
       const own = firms[from];
       const other = firms[to];
 
@@ -216,12 +237,9 @@ describe("another firm's id in the query or body", () => {
       expect(res.status).toBe(200);
       expect(await modeOf(own.admin.token)).toEqual({ modeId: 'smuggled' });
       expect(await modeOf(other.admin.token)).toEqual({ modeId: null });
-    },
-  );
+    });
 
-  it.each(DIRECTIONS)(
-    "the $from firm's admin creating an employee with the $to firm's firmId creates it in its own firm",
-    async ({ from, to }) => {
+    it(`${caller} creating an employee with ${smuggled} creates it in its own firm`, async () => {
       const own = firms[from];
       const other = firms[to];
 
@@ -236,12 +254,9 @@ describe("another firm's id in the query or body", () => {
       const { id } = (res.body as { employee: { id: string } }).employee;
       expect(await listedIds(own.admin.token)).toContain(id);
       expect(await listedIds(other.admin.token)).not.toContain(id);
-    },
-  );
+    });
 
-  it.each(DIRECTIONS)(
-    "the $from firm's admin updating its member with the $to firm's firmId keeps them in its own firm",
-    async ({ from, to }) => {
+    it(`${caller} updating its member with ${smuggled} keeps them in its own firm`, async () => {
       const own = firms[from];
       const other = firms[to];
 
@@ -253,12 +268,9 @@ describe("another firm's id in the query or body", () => {
       expect(res.status).toBe(200);
       expect(await listedIds(own.admin.token)).toContain(own.member.id);
       expect(await listedIds(other.admin.token)).not.toContain(own.member.id);
-    },
-  );
+    });
 
-  it.each(DIRECTIONS)(
-    "the $from firm's admin issuing a display token with the $to firm's firmId gets one for its own firm",
-    async ({ from, to }) => {
+    it(`${caller} issuing a display token with ${smuggled} gets one for its own firm`, async () => {
       const own = firms[from];
 
       const res = await send('post', DISPLAY_TOKENS_PATH, own.admin.token, {
@@ -269,8 +281,8 @@ describe("another firm's id in the query or body", () => {
       expect(res.status).toBe(201);
       const claims = verifyToken((res.body as { token: string }).token, TEST_CONFIG.jwtSecret);
       expect(claims).toMatchObject({ kind: 'display', firmId: own.firmId });
-    },
-  );
+    });
+  }
 });
 
 describe('token claims', () => {
@@ -316,23 +328,25 @@ const FIRM_WRITES = DIRECTIONS.flatMap(({ from, to }) =>
 );
 
 describe("another firm's firm routes", () => {
-  it.each(FIRM_WRITES)('$label gets 403 and changes nothing', async (row) => {
-    const target = firms[row.to];
-    const before = snapshot();
+  for (const row of FIRM_WRITES) {
+    it(`${row.label} gets 403 and changes nothing`, async () => {
+      const target = firms[row.to];
+      const before = snapshot();
 
-    const res = await send(
-      row.method,
-      `${FIRMS_PATH}/${target.firmId}`,
-      firms[row.from][row.role].token,
-      row.body,
-    );
+      const res = await send(
+        row.method,
+        `${FIRMS_PATH}/${target.firmId}`,
+        firms[row.from][row.role].token,
+        row.body,
+      );
 
-    expect(res.status).toBe(403);
-    expect(res.body).toEqual(FORBIDDEN);
-    expect(snapshot()).toEqual(before);
-    const listed = await send('get', FIRMS_PATH, firms.platformAdminToken);
-    expect((listed.body as { firms: unknown[] }).firms).toContainEqual(
-      expect.objectContaining({ id: target.firmId, name: SEED_FIRM_NAMES[row.to] }),
-    );
-  });
+      expect(res.status).toBe(403);
+      expect(res.body).toEqual(FORBIDDEN);
+      expect(snapshot()).toEqual(before);
+      const listed = await send('get', FIRMS_PATH, firms.platformAdminToken);
+      expect((listed.body as { firms: unknown[] }).firms).toContainEqual(
+        expect.objectContaining({ id: target.firmId, name: SEED_FIRM_NAMES[row.to] }),
+      );
+    });
+  }
 });
