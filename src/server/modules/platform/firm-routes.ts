@@ -6,6 +6,7 @@ import { hashPassword } from '../../auth/password.ts';
 import { notFoundHandler } from '../../http/error-handler.ts';
 import { HttpError } from '../../http/errors.ts';
 import { INVALID_BODY_MESSAGE, parseBody, requiredString } from '../../http/validate.ts';
+import type { Realtime } from '../../realtime/realtime.ts';
 import {
   createFirmWithAdmin,
   findActiveFirmById,
@@ -39,10 +40,11 @@ const renameFirmBodySchema = z.object(
 
 export interface FirmRouterDeps {
   db: Database.Database;
+  realtime: Pick<Realtime, 'disconnectFirm'>;
 }
 
 /** The platform-admin firm routes, mounted on `/api/firms` behind `requirePlatformAdmin`. */
-export function createFirmRouter({ db }: FirmRouterDeps): Router {
+export function createFirmRouter({ db, realtime }: FirmRouterDeps): Router {
   const router = Router();
 
   router.get('/', (_req, res) => {
@@ -82,6 +84,8 @@ export function createFirmRouter({ db }: FirmRouterDeps): Router {
     if (!softDeleteFirm(db, new Date().toISOString(), req.params.id)) {
       throw new HttpError('NOT_FOUND', FIRM_NOT_FOUND_MESSAGE);
     }
+    // After the commit, so a display that connects again fails the handshake's live-firm check.
+    realtime.disconnectFirm(req.params.id);
     res.status(204).end();
   });
 

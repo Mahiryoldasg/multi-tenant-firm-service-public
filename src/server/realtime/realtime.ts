@@ -26,6 +26,8 @@ export interface Realtime {
   io: RealtimeServer;
   /** The only emitter of `mode-change`: it reaches the connected displays of this firm only. */
   broadcastModeChange(firmId: string, modeId: string): void;
+  /** Drops every connected display of this firm, closing each one's connection. */
+  disconnectFirm(firmId: string): void;
 }
 
 export interface RealtimeDeps {
@@ -68,6 +70,9 @@ export function createRealtime({ db, config, logger }: RealtimeDeps): Realtime {
     io,
     broadcastModeChange(firmId, modeId) {
       io.to(firmRoom(firmId)).emit('mode-change', { modeId });
+    },
+    disconnectFirm(firmId) {
+      io.in(firmRoom(firmId)).disconnectSockets(true);
     },
   };
 }

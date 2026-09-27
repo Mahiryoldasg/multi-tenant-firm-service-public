@@ -1,15 +1,15 @@
-import type { Socket } from 'socket.io-client';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { insertUser } from '../../src/server/modules/platform/users.ts';
 import { userTokenFor } from '../helpers/auth.ts';
 import { TEST_SEED } from '../helpers/db.ts';
 import {
-  connectDisplay,
   connected,
   issueDisplayToken,
   nextModeChange,
-  recordModeChanges,
+  recordingDisplay,
+  type RecordingDisplay,
+  setModeAndAwait,
   startTestServer,
   stopTestServer,
   type TestServer,
@@ -20,11 +20,6 @@ const FIRST_ADMIN_EMAIL = TEST_SEED.firms[0].adminEmail;
 const SECOND_ADMIN_EMAIL = TEST_SEED.firms[1].adminEmail;
 const FIRST_MEMBER_EMAIL = 'Member@First.Test';
 const LATER = '2999-01-01T00:00:00.000Z';
-
-interface RecordingDisplay {
-  socket: Socket;
-  received: unknown[][];
-}
 
 let server: TestServer;
 let firstA: RecordingDisplay;
@@ -37,9 +32,9 @@ beforeEach(async () => {
     issueDisplayToken(server, FIRST_ADMIN_EMAIL),
     issueDisplayToken(server, SECOND_ADMIN_EMAIL),
   ]);
-  firstA = recordingDisplay(firstToken);
-  firstB = recordingDisplay(firstToken);
-  second = recordingDisplay(secondToken);
+  firstA = recordingDisplay(server.url, firstToken);
+  firstB = recordingDisplay(server.url, firstToken);
+  second = recordingDisplay(server.url, secondToken);
   await Promise.all([firstA, firstB, second].map(({ socket }) => connected(socket)));
 });
 
@@ -47,25 +42,11 @@ afterEach(async () => {
   await stopTestServer(server);
 });
 
-/** A display that records its events from before it connects. */
-function recordingDisplay(token: string): RecordingDisplay {
-  const socket = connectDisplay(server.url, { token });
-  return { socket, received: recordModeChanges(socket) };
-}
-
 function postMode(email: string, body: unknown) {
   return request(server.app)
     .post(MODE_PATH)
     .set('Authorization', `Bearer ${userTokenFor(server.db, email)}`)
     .send(body as object);
-}
-
-/** Posts a mode as the firm admin and waits until this display has received it. */
-async function postModeAndAwait(email: string, modeId: string, display: RecordingDisplay) {
-  const next = nextModeChange(display.socket);
-  const res = await postMode(email, { modeId });
-  expect(res.status).toBe(200);
-  await next;
 }
 
 describe('POST /api/mode', () => {
@@ -82,18 +63,18 @@ describe('POST /api/mode', () => {
   });
 
   it('sends the event again for the same modeId', async () => {
-    await postModeAndAwait(FIRST_ADMIN_EMAIL, 'lobby', firstA);
-    await postModeAndAwait(FIRST_ADMIN_EMAIL, 'lobby', firstA);
+    await setModeAndAwait(server, FIRST_ADMIN_EMAIL, 'lobby', firstA);
+    await setModeAndAwait(server, FIRST_ADMIN_EMAIL, 'lobby', firstA);
 
     expect(firstA.received).toEqual([[{ modeId: 'lobby' }], [{ modeId: 'lobby' }]]);
   });
 
   it("never reaches another firm's displays", async () => {
-    await postModeAndAwait(FIRST_ADMIN_EMAIL, 'first-only', firstA);
+    await setModeAndAwait(server, FIRST_ADMIN_EMAIL, 'first-only', firstA);
 
     // Barrier: the second display's own event. Socket.IO keeps order per connection, so the first
     // firm's event, sent before it, would have arrived first.
-    await postModeAndAwait(SECOND_ADMIN_EMAIL, 'second-only', second);
+    await setModeAndAwait(server, SECOND_ADMIN_EMAIL, 'second-only', second);
 
     expect(second.received).toEqual([[{ modeId: 'second-only' }]]);
   });
@@ -155,7 +136,7 @@ describe('POST /api/mode failures', () => {
     expect(res.status).toBe(status);
 
     // Barrier: a successful set, which the display must receive after anything sent before it.
-    await postModeAndAwait(FIRST_ADMIN_EMAIL, 'barrier', firstA);
+    await setModeAndAwait(server, FIRST_ADMIN_EMAIL, 'barrier', firstA);
 
     expect(firstA.received).toEqual([[{ modeId: 'barrier' }]]);
   });

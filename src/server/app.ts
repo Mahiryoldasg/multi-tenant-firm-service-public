@@ -54,7 +54,7 @@ export function createApp({ logger, db, config, realtime }: AppDeps): express.Ex
   app.get('/api/auth/me', meHandler);
   // The guard covers every method and subpath under /api/firms, so a firm user gets 403 before
   // any 404.
-  app.use('/api/firms', requirePlatformAdmin, createFirmRouter({ db }));
+  app.use('/api/firms', requirePlatformAdmin, createFirmRouter({ db, realtime }));
   // The firm-context prefixes (contract §3): the platform admin gets 403 on every method and subpath
   // before any 404, and firm users get `req.tenant`. Tenant routers mount after this, with no `db`.
   app.use(

@@ -93,6 +93,33 @@ export function nextModeChange(client: Socket): Promise<unknown[]> {
   });
 }
 
+/** A display client and every `mode-change` it has received, recorded from before it connects. */
+export interface RecordingDisplay {
+  socket: Socket;
+  received: unknown[][];
+}
+
+export function recordingDisplay(url: string, token: string): RecordingDisplay {
+  const socket = connectDisplay(url, { token });
+  return { socket, received: recordModeChanges(socket) };
+}
+
+/** Sets the mode as this firm admin through the real API and waits until `display` receives it. */
+export async function setModeAndAwait(
+  { app, db }: TestServer,
+  adminEmail: string,
+  modeId: string,
+  display: RecordingDisplay,
+): Promise<void> {
+  const next = nextModeChange(display.socket);
+  const res = await request(app)
+    .post('/api/mode')
+    .set('Authorization', `Bearer ${userTokenFor(db, adminEmail)}`)
+    .send({ modeId });
+  if (res.status !== 200) throw new Error(`Setting the mode answered ${res.status}`);
+  await next;
+}
+
 /** Every `mode-change` argument list the client receives from now on, in order. */
 export function recordModeChanges(client: Socket): unknown[][] {
   const received: unknown[][] = [];
