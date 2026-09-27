@@ -348,4 +348,20 @@ describe('Swagger UI at /docs', () => {
       expect(docs.body.error.code).toBe('NOT_FOUND');
     },
   );
+
+  // swagger-ui-express would serve these from swagger-ui-dist: the stock Petstore page, a plain-text
+  // 404, and the init script for any method.
+  it.each([
+    ['get', '/docs/index.html'],
+    ['get', '/docs/swagger-initializer.js'],
+    ['get', '/docs/package.json'],
+    ['get', '/docs/x/swagger-ui-init.js'],
+    ['post', '/docs/swagger-ui-init.js'],
+    ['delete', '/docs/swagger-ui.css'],
+  ] as const)('answers %s %s with the 404 envelope', async (method, url) => {
+    const docs = await request(app)[method](url);
+
+    expect(docs.status).toBe(404);
+    expect(docs.body.error.code).toBe('NOT_FOUND');
+  });
 });
