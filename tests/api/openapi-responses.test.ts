@@ -148,6 +148,11 @@ describe('documented response schemas', () => {
 describe('operation-specific error examples', () => {
   const UNKNOWN_ID = '00000000-0000-4000-8000-000000000000';
 
+  interface DocumentedOperation {
+    security?: unknown[];
+    responses: Record<string, { content: Record<string, { example: unknown }> }>;
+  }
+
   interface NotFoundCase {
     method: 'get' | 'patch' | 'delete';
     path: string;
@@ -185,6 +190,26 @@ describe('operation-specific error examples', () => {
       );
     },
   );
+
+  it('match the 401 of every secured operation for a request without a token', async () => {
+    const { app } = await createTestApp();
+    const document = (await request(app).get('/openapi.json')).body;
+    const secured = Object.entries(document.paths).flatMap(([path, item]) =>
+      Object.entries(item as Record<string, DocumentedOperation>)
+        .filter(([, operation]) => operation.security)
+        .map(([method, operation]) => ({ method, path, operation })),
+    );
+
+    expect(secured).toHaveLength(13);
+    for (const { method, path, operation } of secured) {
+      const res = await request(app)[method as 'get'](path.replace('{id}', UNKNOWN_ID));
+
+      expect(res.status, `${method} ${path}`).toBe(401);
+      expect(res.body, `${method} ${path}`).toEqual(
+        operation.responses['401']?.content['application/json']?.example,
+      );
+    }
+  });
 
   it('match the login 401 for a wrong password', async () => {
     const { app } = await createTestApp();

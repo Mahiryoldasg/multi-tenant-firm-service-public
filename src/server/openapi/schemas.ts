@@ -1,7 +1,7 @@
 import type { ResponseConfig } from '@asteasolutions/zod-to-openapi';
 import { z } from 'zod';
 import { EMAIL_TAKEN_MESSAGE } from '../auth/email.ts';
-import { INVALID_SESSION_MESSAGE } from '../http/authenticate.ts';
+import { AUTH_REQUIRED_MESSAGE } from '../http/authenticate.ts';
 import { FORBIDDEN_MESSAGE } from '../http/authorize.ts';
 import { NOT_FOUND_MESSAGE } from '../http/error-handler.ts';
 import type { ErrorCode } from '../http/errors.ts';
@@ -107,7 +107,8 @@ export const errorEnvelopeSchema = z
 
 const ERRORS_BY_STATUS = {
   400: { code: 'VALIDATION_ERROR', message: INVALID_BODY_MESSAGE },
-  401: { code: 'UNAUTHORIZED', message: INVALID_SESSION_MESSAGE },
+  // The no-token message: the first 401 a Swagger user meets, before Authorize.
+  401: { code: 'UNAUTHORIZED', message: AUTH_REQUIRED_MESSAGE },
   403: { code: 'FORBIDDEN', message: FORBIDDEN_MESSAGE },
   404: { code: 'NOT_FOUND', message: NOT_FOUND_MESSAGE },
   409: { code: 'CONFLICT', message: EMAIL_TAKEN_MESSAGE },
