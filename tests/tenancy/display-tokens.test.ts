@@ -93,6 +93,33 @@ describe('displayTokens.create', () => {
     ]);
   });
 
+  it('keeps its own firm, id and time when the caller object carries stray keys', () => {
+    // A variable, not a fresh literal, so TypeScript lets the extra keys through.
+    const withStrayKeys = {
+      label: 'Lobi',
+      createdByUserId: firstAdminId,
+      firmId: secondFirmId,
+      id: 'forged-id',
+      now: '2000-01-01T00:00:00.000Z',
+    };
+
+    const issued = createTenantScope(db, firstFirmId).displayTokens.create(
+      CREATED_AT,
+      withStrayKeys,
+    );
+
+    expect(issued).toEqual({ id: expect.stringMatching(UUID), firmId: firstFirmId });
+    expect(tokenRows()).toEqual([
+      {
+        id: issued?.id,
+        firm_id: firstFirmId,
+        label: 'Lobi',
+        created_by_user_id: firstAdminId,
+        created_at: CREATED_AT,
+      },
+    ]);
+  });
+
   it('returns undefined for a soft-deleted firm and writes no row', () => {
     db.prepare('UPDATE firms SET deleted_at = @at WHERE id = @id').run({
       at: DELETED_AT,

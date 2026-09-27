@@ -103,7 +103,8 @@ export function createEmployeesRepository(
         // Email uniqueness is system-wide (contract §3): the same check as a firm's first admin.
         if (findActiveUserByEmail(db, normalizeEmail(employee.email))) return EMAIL_TAKEN;
 
-        const id = insertUser(db, now, { firmId, ...employee });
+        // The scope's firm last, so a stray `firmId` on the caller's object can never override it.
+        const id = insertUser(db, now, { ...employee, firmId });
         return { id, email: employee.email, role: employee.role };
       });
 

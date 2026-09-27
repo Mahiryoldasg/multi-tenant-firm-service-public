@@ -209,6 +209,20 @@ describe('employees.create', () => {
     expect(employees.create(LATER, { ...NEW_EMPLOYEE, email: SECOND_ADMIN_EMAIL })).toBe(FIRM_GONE);
     expect(userCount()).toBe(before);
   });
+
+  it('keeps its own firm when the caller object carries a stray firmId', () => {
+    // A variable, not a fresh literal, so TypeScript lets the extra key through.
+    const withStrayFirm = { ...NEW_EMPLOYEE, firmId: secondFirmId };
+    const secondFirmBefore = createTenantScope(db, secondFirmId).employees.list();
+
+    const created = createTenantScope(db, firstFirmId).employees.create(LATER, withStrayFirm);
+
+    if (typeof created === 'string') throw new Error(`Expected an employee, got ${created}`);
+    expect(db.prepare('SELECT firm_id FROM users WHERE id = @id').get({ id: created.id })).toEqual({
+      firm_id: firstFirmId,
+    });
+    expect(createTenantScope(db, secondFirmId).employees.list()).toEqual(secondFirmBefore);
+  });
 });
 
 describe('employees.update', () => {
