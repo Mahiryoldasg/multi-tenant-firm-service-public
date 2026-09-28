@@ -4,7 +4,7 @@ import { errorMessage } from '../api.ts';
 import { LoginPage } from './LoginPage.tsx';
 import { useSession, type Role, type User } from './session.tsx';
 
-const ROLE_LABELS: Record<Role, string> = {
+export const ROLE_LABELS: Record<Role, string> = {
   platform_admin: 'Platform yöneticisi',
   firm_admin: 'Firma yöneticisi',
   member: 'Üye',

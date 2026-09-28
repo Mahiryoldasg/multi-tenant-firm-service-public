@@ -1,0 +1,49 @@
+import { useQuery } from '@tanstack/react-query';
+import { errorMessage } from '../api.ts';
+import { useSession } from '../auth/session.tsx';
+import { EmployeeRow } from './EmployeeRow.tsx';
+import type { Employee } from './requests.ts';
+
+/** The employees of the signed-in user's firm. */
+export function EmployeesSection() {
+  const { request } = useSession();
+  const employees = useQuery({
+    queryKey: ['employees'],
+    queryFn: async () => (await request<{ employees: Employee[] }>('/api/employees')).employees,
+  });
+
+  return (
+    <section>
+      <h2 id="employee-list-heading">Çalışanlar</h2>
+      {/* A failed refetch keeps the last list below the error. */}
+      {employees.isError && (
+        <>
+          <p className="error" role="alert">
+            {errorMessage(employees.error)}
+          </p>
+          <button type="button" onClick={() => void employees.refetch()}>
+            Tekrar dene
+          </button>
+        </>
+      )}
+      {employees.isPending && <p role="status">Çalışanlar yükleniyor...</p>}
+      {employees.data?.length === 0 && <p>Henüz çalışan yok.</p>}
+      {employees.data && employees.data.length > 0 && (
+        <table aria-labelledby="employee-list-heading">
+          <thead>
+            <tr>
+              <th scope="col">E-posta</th>
+              <th scope="col">Rol</th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* The API already sends the oldest employee first. */}
+            {employees.data.map((employee) => (
+              <EmployeeRow key={employee.id} employee={employee} />
+            ))}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
