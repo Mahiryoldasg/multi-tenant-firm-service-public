@@ -138,3 +138,48 @@ td {
   flex-basis: 100%;
   margin: 0;
 }
+
+.simulator-form {
+  display: grid;
+  gap: 8px;
+  max-width: 640px;
+}
+
+.simulator-form label {
+  font-weight: 500;
+}
+
+/* A modeId, a server reason or a transport error can be one long unbroken string. */
+.simulator section {
+  overflow-wrap: anywhere;
+}
+
+.mode-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.event-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+}
+
+.event-log li {
+  display: flex;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.event-log li:last-child {
+  border-bottom: none;
+}
+
+.event-log time {
+  flex-shrink: 0;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  color: #6b7280;
+}

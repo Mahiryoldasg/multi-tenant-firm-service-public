@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { RequireRole } from './auth/RequireRole.tsx';
 import { RoleHome, SessionGate } from './auth/SessionGate.tsx';
 import { SessionProvider } from './auth/session.tsx';
+import { DisplayPage } from './display/DisplayPage.tsx';
 import { FirmsPage } from './firms/FirmsPage.tsx';
 import { WorkspacePage } from './workspace/WorkspacePage.tsx';
 
@@ -34,6 +35,8 @@ export function App() {
                 }
               />
             </Route>
+            {/* Public: a display has no login, only its display token. */}
+            <Route path="/display" element={<DisplayPage />} />
             {/* Anything else goes home, where the gate shows the login form or the role home. */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
