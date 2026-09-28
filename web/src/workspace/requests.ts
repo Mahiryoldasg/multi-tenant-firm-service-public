@@ -31,3 +31,9 @@ export function employeeChanges(
   if (draft.role !== employee.role) changes.role = draft.role;
   return changes.email === undefined && changes.role === undefined ? null : changes;
 }
+
+/** The `POST /api/display-tokens` body: a blank label is left out, so the token has no label. */
+export function displayTokenBody(label: string): { label?: string } {
+  // A label with text is sent as typed; the API stores it as sent.
+  return label.trim() === '' ? {} : { label };
+}

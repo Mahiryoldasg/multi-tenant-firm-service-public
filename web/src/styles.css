@@ -59,6 +59,7 @@ section + section {
 
 input,
 select,
+textarea,
 button {
   font: inherit;
   padding: 6px 10px;
@@ -100,6 +101,30 @@ td {
   padding: 8px 12px;
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.issued-token {
+  display: grid;
+  gap: 8px;
+  max-width: 640px;
+  margin-top: 16px;
+}
+
+.issued-token h3,
+.issued-token p {
+  margin: 0;
+}
+
+.issued-token button {
+  justify-self: start;
+}
+
+/* A display token is one long unbroken string: wrap it anywhere and keep it monospace. */
+.token-output {
+  box-sizing: border-box;
+  width: 100%;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  word-break: break-all;
 }
 
 .row-form {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { employeeChanges, type Employee } from '../../web/src/workspace/requests.ts';
+import {
+  displayTokenBody,
+  employeeChanges,
+  type Employee,
+} from '../../web/src/workspace/requests.ts';
 
 const employee: Employee = { id: 'e1', email: 'uye@acme.local', role: 'member' };
 
@@ -37,5 +41,17 @@ describe('employeeChanges', () => {
     expect(employeeChanges(employee, { email: ' uye@acme.local ', role: 'member' })).toEqual({
       email: ' uye@acme.local ',
     });
+  });
+});
+
+describe('displayTokenBody', () => {
+  it('leaves out an empty or blank label', () => {
+    expect(displayTokenBody('')).toEqual({});
+    expect(displayTokenBody('   ')).toEqual({});
+  });
+
+  it('sends a label with text as typed', () => {
+    expect(displayTokenBody('Salon A')).toEqual({ label: 'Salon A' });
+    expect(displayTokenBody(' Salon A ')).toEqual({ label: ' Salon A ' });
   });
 });

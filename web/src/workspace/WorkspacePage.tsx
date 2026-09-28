@@ -1,4 +1,5 @@
 import { useCurrentUser } from '../auth/SessionGate.tsx';
+import { DisplayTokenPanel } from './DisplayTokenPanel.tsx';
 import { EmployeesSection } from './EmployeesSection.tsx';
 import { ModePanel } from './ModePanel.tsx';
 
@@ -17,6 +18,7 @@ export function WorkspacePage() {
           from the old role comes back with a later promotion. */}
       <EmployeesSection key={role} canManage={canManage} />
       <ModePanel canManage={canManage} />
+      {canManage && <DisplayTokenPanel />}
     </>
   );
 }
