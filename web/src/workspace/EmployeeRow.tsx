@@ -1,14 +1,166 @@
+import { useIsMutating, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { ApiError, errorMessage } from '../api.ts';
 import { ROLE_LABELS, useCurrentUser } from '../auth/SessionGate.tsx';
-import type { Employee } from './requests.ts';
+import { useSession } from '../auth/session.tsx';
+import {
+  employeeChanges,
+  type Employee,
+  type EmployeeChanges,
+  type EmployeeRole,
+} from './requests.ts';
+
+const UPDATE_KEY = ['employees', 'update'];
 
 interface EmployeeRowProps {
   employee: Employee;
+  /** A firm admin gets the row actions; a member only reads the row. */
+  canManage: boolean;
+  editing: boolean;
+  onStartEdit: () => void;
+  onEndEdit: () => void;
+  /** Shows a message above the table, where it outlives this row; `null` clears it. */
+  onAlert: (message: string | null) => void;
 }
 
-/** One employee in the table. */
-export function EmployeeRow({ employee }: EmployeeRowProps) {
+function isNotFound(error: Error): boolean {
+  return error instanceof ApiError && error.status === 404;
+}
+
+/** One employee in the table, with an inline edit of the email and role for a firm admin. */
+export function EmployeeRow({
+  employee,
+  canManage,
+  editing,
+  onStartEdit,
+  onEndEdit,
+  onAlert,
+}: EmployeeRowProps) {
+  const { request } = useSession();
   const currentUser = useCurrentUser();
+  const queryClient = useQueryClient();
+  const [draftEmail, setDraftEmail] = useState(employee.email);
+  const [draftRole, setDraftRole] = useState<EmployeeRole>(employee.role);
+  const emailInput = useRef<HTMLInputElement>(null);
   const isSelf = employee.id === currentUser.id;
+  const employeePath = `/api/employees/${encodeURIComponent(employee.id)}`;
+  // While any row's update is pending, no row may take over edit mode, so its result can show.
+  const updatePending = useIsMutating({ mutationKey: UPDATE_KEY }) > 0;
+
+  function refreshEmployees() {
+    return queryClient.invalidateQueries({ queryKey: ['employees'] });
+  }
+
+  const update = useMutation({
+    mutationKey: UPDATE_KEY,
+    mutationFn: (changes: EmployeeChanges) =>
+      request(employeePath, { method: 'PATCH', body: changes }),
+    onSuccess: async () => {
+      const refreshes = [refreshEmployees()];
+      // Your own row also reloads `/me`, so the header and the role view follow the change.
+      if (isSelf) refreshes.push(queryClient.invalidateQueries({ queryKey: ['me'] }));
+      // Leaves edit mode only once the list shows the change.
+      await Promise.all(refreshes);
+      onEndEdit();
+    },
+    onError: (error) => {
+      if (isNotFound(error)) {
+        // Deleted elsewhere: the refetch removes this row, so the message goes above the table.
+        onAlert(`${employee.email} güncellenemedi: ${errorMessage(error)}`);
+        onEndEdit();
+        void refreshEmployees();
+      } else {
+        emailInput.current?.focus();
+      }
+    },
+  });
+
+  function startEdit() {
+    setDraftEmail(employee.email);
+    setDraftRole(employee.role);
+    update.reset();
+    onStartEdit();
+  }
+
+  function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onAlert(null);
+    const changes = employeeChanges(employee, { email: draftEmail, role: draftRole });
+    // Nothing to save, so nothing to send.
+    if (changes === null) {
+      onEndEdit();
+      return;
+    }
+    update.mutate(changes);
+  }
+
+  function handleEditKeyDown(event: KeyboardEvent<HTMLFormElement>) {
+    // Like the disabled "Vazgeç": a pending update keeps edit mode until its result is in.
+    if (event.key === 'Escape' && !update.isPending) onEndEdit();
+  }
+
+  const emailId = `employee-email-${employee.id}`;
+  const roleId = `employee-role-${employee.id}`;
+  const errorId = `employee-error-${employee.id}`;
+
+  // A member never edits, even when a self-demotion lands while the row is in edit mode.
+  if (canManage && editing) {
+    return (
+      <tr>
+        <td colSpan={3}>
+          <form
+            className="row-form"
+            noValidate
+            onSubmit={handleEditSubmit}
+            onKeyDown={handleEditKeyDown}
+          >
+            <label htmlFor={emailId}>E-posta</label>
+            <input
+              id={emailId}
+              ref={emailInput}
+              type="email"
+              autoComplete="off"
+              autoFocus
+              required
+              value={draftEmail}
+              onChange={(event) => setDraftEmail(event.target.value)}
+              aria-invalid={update.isError}
+              aria-describedby={update.isError ? errorId : undefined}
+            />
+            <label htmlFor={roleId}>Rol</label>
+            <select
+              id={roleId}
+              value={draftRole}
+              onChange={(event) => setDraftRole(event.target.value as EmployeeRole)}
+            >
+              <option value="member">{ROLE_LABELS.member}</option>
+              <option value="firm_admin">{ROLE_LABELS.firm_admin}</option>
+            </select>
+            <button
+              type="submit"
+              disabled={update.isPending}
+              aria-label={`${employee.email} çalışanının değişikliklerini kaydet`}
+            >
+              Kaydet
+            </button>
+            <button
+              type="button"
+              onClick={onEndEdit}
+              disabled={update.isPending}
+              aria-label={`${employee.email} çalışanını düzenlemekten vazgeç`}
+            >
+              Vazgeç
+            </button>
+            {update.isError && (
+              <p id={errorId} className="error" role="alert">
+                {errorMessage(update.error)}
+              </p>
+            )}
+          </form>
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <tr>
@@ -17,6 +169,20 @@ export function EmployeeRow({ employee }: EmployeeRowProps) {
         {isSelf && ' (siz)'}
       </td>
       <td>{ROLE_LABELS[employee.role]}</td>
+      {canManage && (
+        <td>
+          <div className="actions">
+            <button
+              type="button"
+              onClick={startEdit}
+              disabled={updatePending}
+              aria-label={`${employee.email} çalışanını düzenle`}
+            >
+              Düzenle
+            </button>
+          </div>
+        </td>
+      )}
     </tr>
   );
 }
