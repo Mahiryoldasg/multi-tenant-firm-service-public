@@ -462,3 +462,19 @@ hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
   altyapısı yok; arayüz elle doğrulandı.
 - **P2 bonusları** (bu belge yazılırken yapılmamıştı): kontrol arayüzünde socket ile canlı mod,
   display'in güncel modu isteyebildiği ack'li bir `mode:get` (N4) ve cihaz eşleştirme akışı.
+
+## AI kullanımı
+
+- Bu projeyi baştan sona Claude Code ile birlikte yazdım: planlar, spec'ler, kod, testler ve
+  belgeler, bu belge dahil.
+- İş, AI Blueprint iş akışıyla yürüdü: önce proje planı ve build planı, sonra her özellik için bir
+  spec. Spec onaylanınca özellik küçük adımlarla uygulandı; her adımı inceleyip onayladıktan sonra
+  commit ettim ve her özellik `main`'e bir merge commit'iyle girdi.
+- Kural: AI'ın yazdığı hiçbir şey, satır satır açıklayamadığım sürece commit edilmedi.
+- Özelliklerin çoğu kapanmadan önce ayrıca denetlendi (audit); hassas olanlarda, yazan oturumdan
+  bağımsız ve temiz bağlamlı bir inceleyici oturumu kodu bir kez daha gözden geçirdi. Bulgular ve
+  sonuçları özellik arşivlerinde, düzeltmeler ayrı `fix/` dallarındadır.
+- Commit'lerde AI imzası (`Co-Authored-By` gibi) yok; AI kullanımı bunun yerine burada ve
+  kayıtlarda açıkça belgelendi.
+- Kayıtlar: planlar, spec'ler ve inceleme bulguları [blueprint/](blueprint/) altında; AI kodlama
+  araçlarının çalışma talimatları [AGENTS.md](AGENTS.md) ve [CLAUDE.md](CLAUDE.md) dosyalarında.

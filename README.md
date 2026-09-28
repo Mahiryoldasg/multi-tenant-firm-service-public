@@ -8,6 +8,8 @@ firmalarının `mode-change` olaylarını alır. Dışarıya açılan her şey (
 API sözleşmesine uyar.
 
 Belgelerin ve kodun nerede olduğu ve önerilen okuma sırası için: [docs/README.md](docs/README.md).
+Tasarım kararları, tenant izolasyonunun nerede uygulandığı ve sözleşme notları için:
+[DESIGN.md](DESIGN.md).
 
 ## Gereksinimler
 
