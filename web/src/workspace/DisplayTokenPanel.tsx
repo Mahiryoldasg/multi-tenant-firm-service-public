@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router';
 import { errorMessage } from '../api.ts';
 import { useSession } from '../auth/session.tsx';
 import { displayTokenBody } from './requests.ts';
@@ -92,6 +93,13 @@ export function DisplayTokenPanel() {
               Kopyalanamadı. Token'ı seçip elle kopyalayın.
             </p>
           )}
+          {/* A new tab keeps this token on screen here, and the link never carries it. */}
+          <p>
+            Denemek için simülatörü açıp kopyaladığınız token'ı yapıştırın:{' '}
+            <Link to="/display" target="_blank" rel="noopener noreferrer">
+              Ekran simülatörünü yeni sekmede aç
+            </Link>
+          </p>
         </div>
       )}
     </section>
