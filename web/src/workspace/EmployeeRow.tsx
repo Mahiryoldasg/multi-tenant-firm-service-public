@@ -42,6 +42,9 @@ export function EmployeeRow({
   const { request, signOut } = useSession();
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
+  // The row as it was when the edit began. A list refetch during the edit can bring newer values,
+  // and a save must send only what the user changed, not undo someone else's change (F-01).
+  const [editBase, setEditBase] = useState(employee);
   const [draftEmail, setDraftEmail] = useState(employee.email);
   const [draftRole, setDraftRole] = useState<EmployeeRole>(employee.role);
   const emailInput = useRef<HTMLInputElement>(null);
@@ -95,6 +98,7 @@ export function EmployeeRow({
   });
 
   function startEdit() {
+    setEditBase(employee);
     setDraftEmail(employee.email);
     setDraftRole(employee.role);
     update.reset();
@@ -104,7 +108,7 @@ export function EmployeeRow({
   function handleEditSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onAlert(null);
-    const changes = employeeChanges(employee, { email: draftEmail, role: draftRole });
+    const changes = employeeChanges(editBase, { email: draftEmail, role: draftRole });
     // Nothing to save, so nothing to send.
     if (changes === null) {
       onEndEdit();
