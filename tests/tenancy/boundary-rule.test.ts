@@ -40,12 +40,13 @@ const ALLOWED: Probe[] = [
 
 let eslint: ESLint;
 
+// ESLint loads the config and its plugins on the first lint. Doing it here keeps that one-time cost
+// out of the first case's test timeout (5 s). The first run after a fresh `npm install` reads every
+// plugin file cold and took over 10 s (the default hook timeout) on Windows, so the hook gets 60 s.
 beforeAll(async () => {
   eslint = new ESLint({ cwd: REPO_ROOT });
-  // ESLint loads the config and its plugins on the first lint. Doing it here puts that one-time cost
-  // under the hook timeout (10 s) instead of the first case's test timeout (5 s).
   await eslint.lintText('', { filePath: path.join(REPO_ROOT, TENANT_PROBE) });
-});
+}, 60_000);
 
 /** The boundary rule's messages for `code` linted as `file`; other rules (unused imports) are ignored. */
 async function boundaryMessages(code: string, file: string): Promise<string[]> {
