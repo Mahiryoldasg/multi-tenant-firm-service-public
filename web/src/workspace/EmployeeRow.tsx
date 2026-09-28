@@ -12,6 +12,9 @@ import {
 
 const UPDATE_KEY = ['employees', 'update'];
 
+const SELF_DELETE_CONFIRM_TEXT =
+  'Kendi hesabınızı siliyorsunuz. Oturumunuz kapanacak ve bu hesapla bir daha giriş yapamayacaksınız. Devam edilsin mi?';
+
 interface EmployeeRowProps {
   employee: Employee;
   /** A firm admin gets the row actions; a member only reads the row. */
@@ -27,7 +30,7 @@ function isNotFound(error: Error): boolean {
   return error instanceof ApiError && error.status === 404;
 }
 
-/** One employee in the table, with an inline edit of the email and role for a firm admin. */
+/** One employee in the table, with an inline edit and a confirmed delete for a firm admin. */
 export function EmployeeRow({
   employee,
   canManage,
@@ -36,7 +39,7 @@ export function EmployeeRow({
   onEndEdit,
   onAlert,
 }: EmployeeRowProps) {
-  const { request } = useSession();
+  const { request, signOut } = useSession();
   const currentUser = useCurrentUser();
   const queryClient = useQueryClient();
   const [draftEmail, setDraftEmail] = useState(employee.email);
@@ -75,6 +78,22 @@ export function EmployeeRow({
     },
   });
 
+  const remove = useMutation({
+    mutationFn: () => request(employeePath, { method: 'DELETE' }),
+    onSuccess: () => {
+      // Your own account and its token are gone: sign out, without the expiry notice.
+      if (isSelf) {
+        signOut();
+        return;
+      }
+      return refreshEmployees();
+    },
+    onError: (error) => {
+      onAlert(`${employee.email} silinemedi: ${errorMessage(error)}`);
+      if (isNotFound(error)) void refreshEmployees();
+    },
+  });
+
   function startEdit() {
     setDraftEmail(employee.email);
     setDraftRole(employee.role);
@@ -97,6 +116,17 @@ export function EmployeeRow({
   function handleEditKeyDown(event: KeyboardEvent<HTMLFormElement>) {
     // Like the disabled "Vazgeç": a pending update keeps edit mode until its result is in.
     if (event.key === 'Escape' && !update.isPending) onEndEdit();
+  }
+
+  function handleDelete() {
+    const confirmed = window.confirm(
+      isSelf
+        ? SELF_DELETE_CONFIRM_TEXT
+        : `${employee.email} çalışanı silinsin mi? Bu kullanıcı bir daha giriş yapamaz.`,
+    );
+    if (!confirmed) return;
+    onAlert(null);
+    remove.mutate();
   }
 
   const emailId = `employee-email-${employee.id}`;
@@ -175,10 +205,18 @@ export function EmployeeRow({
             <button
               type="button"
               onClick={startEdit}
-              disabled={updatePending}
+              disabled={remove.isPending || updatePending}
               aria-label={`${employee.email} çalışanını düzenle`}
             >
               Düzenle
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={remove.isPending}
+              aria-label={`${employee.email} çalışanını sil`}
+            >
+              Sil
             </button>
           </div>
         </td>
