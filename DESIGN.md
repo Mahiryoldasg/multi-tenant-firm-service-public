@@ -149,3 +149,111 @@ bağlamındaki yollarda `403` alır: firması olmadığı için orada bakabilece
   firmasının bütün display'lerine sırasıyla ulaşır, diğer firmanınkilere hiç ulaşmaz. Bir olayın
   gelmediği, ardından gelmesi gereken bir olay gönderilerek kanıtlanır: Socket.IO bir bağlantıda
   sırayı korur, sızan bir olay ondan önce gelirdi. Testler sabit bir bekleme süresine dayanmaz.
+
+## Kimlik doğrulama ve yetki
+
+### Token'lar
+
+- HS256 JWT, `JWT_SECRET` ile imzalanır. Doğrulama `algorithms: ['HS256']` ile sabitlenir; token
+  kendi algoritmasını (`none` ya da başka bir HMAC) seçemez. HTTP ve socket aynı doğrulama
+  fonksiyonunu kullanır ([src/server/auth/tokens.ts](src/server/auth/tokens.ts)).
+- Sır yalnız ortamdan gelir, kodda yoktur. `npm start` ilk çalıştırmada `.env` dosyasını oluşturur
+  ve rastgele bir `JWT_SECRET` üretir; `JWT_SECRET` yoksa servis açılmaz.
+- **Kullanıcı token'ı:** `{ sub, role, firmId? }` ile `iat` ve `exp`. Ömrü `USER_TOKEN_TTL`
+  (varsayılan `12h`). Platform admin'de `firmId` gönderilmez: `null` değil, hiç yoktur.
+- **Display token'ı:** `{ kind: 'display', firmId }` ile `iat` ve `jti`; `exp` yoktur. `jti`,
+  token'ın `display_tokens` satırının id'sidir. Yalnız socket handshake'inde geçer, herhangi bir
+  HTTP yolunda `401` alır. Onu üreten kullanıcının silinmesi ya da rolünün değişmesi token'ı
+  etkilemez; firması silinince geçersiz olur. Token metni saklanmaz ve loglanmaz.
+- Kullanıcı token'ıyla socket'e bağlanmaya çalışan `connect_error` alır.
+
+### Her istekte veritabanı
+
+`authenticate`, token'ın `sub` değeriyle kullanıcıyı her istekte yeniden okur; rol ve firma bu
+satırdan gelir, token'daki `role` ve `firmId` claim'leri hiç okunmaz. Böylece rol değişikliği
+sonraki istekte uygulanır; silinen bir kullanıcı ya da silinen bir firmanın kullanıcısı, token'ının
+süresi dolmadan `401` alır. Bunun için bir blacklist gerekmez. `GET /api/auth/me` (uzantı) aynı
+okumadan mevcut kullanıcıyı döner; arayüz rolü buradan öğrenir.
+
+### Şifreler ve giriş
+
+- Şifreler `node:crypto` scrypt ile saklanır: kullanıcı başına 16 baytlık rastgele salt, 64 baytlık
+  anahtar, `timingSafeEqual` ile sabit zamanlı karşılaştırma
+  ([src/server/auth/password.ts](src/server/auth/password.ts)). Hash asenkron hesaplanır, event
+  loop'u bloklamaz; native bir bağımlılık gerekmez.
+- Bilinmeyen e-posta, yanlış şifre, silinmiş kullanıcı ve silinmiş firma aynı `401` gövdesini alır
+  ("E-posta veya şifre hatalı."). Bilinmeyen bir e-posta da sahte bir hash'e karşı denetlenir; yanıt
+  süresi de hangi e-postaların var olduğunu ele vermez.
+- Loglarda `Authorization` başlığı ve şifre alanları maskelenir.
+
+### Platform admin modeli
+
+Firma CRUD'u yalnız platform admin tarafından yapılır. Bunun nasıl modellendiği:
+
+- Platform admin ayrı bir tablo ya da ayrı bir giriş yolu değildir: `users` tablosunda
+  `role = 'platform_admin'` ve `firm_id = NULL` olan bir satırdır. `CHECK` kısıtı ikisini birbirine
+  bağlar: firmasız kullanıcı yalnız platform admin olabilir, platform admin'in firması olamaz.
+- Aynı `POST /api/auth/login` ile girer, aynı biçimde bir token alır (`firmId` olmadan) ve aynı
+  `authenticate`'ten geçer. Fark yalnız yetkidedir: `/api/firms` altında yalnız platform admin geçer
+  (`requirePlatformAdmin`); firma bağlamındaki yollarda (`/api/employees`, `/api/mode`,
+  `/api/display-tokens`) her metotta `403` alır.
+- Seed tek bir platform admin oluşturur (`SEED_PLATFORM_ADMIN_*`). API'de başka bir platform admin
+  oluşturan yol yoktur: çalışan endpoint'leri `role` olarak yalnız `firm_admin` ya da `member`
+  kabul eder, `platform_admin` `400` alır.
+- Neden böyle: giriş, token ve kimlik doğrulama tek bir yol olarak kalır; sistem çapındaki e-posta
+  benzersizliği platform admin'i de kapsar; firmasız bir firma kullanıcısı ya da firmalı bir
+  platform admin veritabanı seviyesinde imkânsızdır.
+
+### Kontrol arayüzü
+
+Arayüz, dışarıya açık API'yi HTTP üzerinden, `Authorization: Bearer` ile kullanır; servis
+katmanına ya da veritabanına arka bir yolu yoktur. Token `sessionStorage`'da tutulur: sayfa
+yenilenince kalır, sekme kapanınca biter. Bir `401` oturumu kapatır ve giriş ekranına döner.
+
+## Trade-off'lar
+
+Her madde: seçim, neden, bedeli.
+
+- **SQLite, tek dosya.** Kurulum gerektirmez; `npm install && npm start` yeter ve testler dosya
+  başına bellek içi bir veritabanıyla hızlı çalışır. Bedeli: tek süreç ve tek yazıcı; birden fazla
+  instance için bir veritabanı sunucusu gerekir.
+- **Ham SQL ve repository'ler, ORM yok.** Tenant koşulu tek bir yerde ve göz önündedir; arada
+  sihir yoktur, her sorgu satır satır açıklanabilir. Bedeli: şema değiştiğinde SQL ve tipler elle
+  güncellenir.
+- **Express 5 ve elle sıralanmış pipeline.** Sözleşmedeki `401 → 403 → 404 → 400 → 409` sırası,
+  gövde doğrulamasının kaynak aramasından sonra yapılmasını gerektirir. Şema öncelikli
+  framework'ler handler'dan önce doğrular ve `404` yerine `400` verirdi. Bedeli: her handler
+  doğrulamayı açıkça çağırır.
+- **Her istekte veritabanı okuması.** Silme ve rol değişikliği sonraki istekte geçerli olur,
+  blacklist gerekmez (sözleşme §2). Bedeli: her istekte index'li bir sorgu; ölçekte bir önbellek ya
+  da daha kısa ömürlü token'lar düşünülmeli.
+- **Soft delete.** Silinen kaydın satırı kalır. `display_tokens` satırlarının firmaya ve token'ı
+  üreten kullanıcıya bağlanan foreign key'leri kırılmaz, bu yüzden token'ı üreten kullanıcı
+  silinse de display token'ı sözleşmedeki gibi çalışmaya devam eder ve kaydı kaybolmaz; firma
+  silme, kullanıcılarıyla birlikte tek bir transaction'da iki `UPDATE`'tir. Bedeli: her okuma
+  `deleted_at IS NULL` koşulu taşır, e-posta benzersizliği koşullu bir index ister ve veri fiziksel
+  olarak silinmez.
+- **Süreç içi Socket.IO odaları.** Tek instance için yeterli, ek servis gerektirmez. Bedeli: ikinci
+  bir süreç, başka süreçteki display'lere yayın yapamaz; yatay ölçekte Redis adapter gibi paylaşılan
+  bir katman gerekir.
+- **Koşulsuz yayın, bağlanınca yayın yok.** Sözleşme her başarılı `POST /api/mode`'da olay istiyor;
+  bağlanınca kendiliğinden gönderilen bir olay, sözleşme testlerindeki "tam bir olay" ya da "hiç olay
+  yok" beklentilerini bozabilirdi. Bedeli: yeniden bağlanan bir display, bir sonraki
+  `POST /api/mode`'a kadar güncel modu öğrenemez (N4).
+- **Display token'ında `exp` ve revoke yok.** Sözleşme böyle tanımlıyor ve kiosk'un yeniden giriş
+  yapma yolu yok; `jti` ileride revoke için saklanır. Bedeli: sızan bir display token'ı firma
+  silinene kadar geçerlidir; yalnız o firmanın mod değişikliklerini dinleyebilir, HTTP'de `401`
+  alır.
+- **`sessionStorage` ve Bearer, HttpOnly cookie değil.** Sözleşme tarayıcıdan
+  `Authorization: Bearer` istiyor; cookie olmadığı için CSRF yüzeyi de yok. Bedeli: bir XSS token'ı
+  okuyabilir. Arayüz kullanıcı metnini yalnız React ile, kaçışlı olarak render eder.
+- **Lint sınırı bir korkuluk.** Ayrı bir paket ya da çalışma zamanı sandbox'ı yerine lint kuralı ve
+  tenant router'larına `db` verilmemesi. Bedeli: dinamik bir `import()` kuralı atlatabilir; bunu
+  kod incelemesi yakalamalı.
+- **Son firma admin'i korunmuyor.** Sözleşme bu durumu tanımlamıyor; engellemek sözleşme testleriyle
+  çelişebilirdi. Bedeli: bir firma yönetilemez kalabilir (N2).
+- **Türkçe `error.message`, sözleşmedeki `code`.** Sözleşme örneği Türkçe, arayüz mesajı olduğu gibi
+  gösterir, testler `code`'a bakar. Bedeli: tek dil; i18n kapsam dışı.
+- **Node'un varsayılan scrypt maliyeti** (N=16384, r=8, p=1). Giriş ve testler hızlı kalır. Bedeli:
+  OWASP daha yüksek bir maliyet öneriyor; yükseltmek hash biçimine bir sürüm ya da yeniden seed
+  gerektirir.
