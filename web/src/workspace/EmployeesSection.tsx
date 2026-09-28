@@ -1,11 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../api.ts';
 import { useSession } from '../auth/session.tsx';
+import { CreateEmployeeForm } from './CreateEmployeeForm.tsx';
 import { EmployeeRow } from './EmployeeRow.tsx';
 import type { Employee } from './requests.ts';
 
+interface EmployeesSectionProps {
+  /** A firm admin manages employees; a member only reads the list. */
+  canManage: boolean;
+}
+
 /** The employees of the signed-in user's firm. */
-export function EmployeesSection() {
+export function EmployeesSection({ canManage }: EmployeesSectionProps) {
   const { request } = useSession();
   const employees = useQuery({
     queryKey: ['employees'],
@@ -15,6 +21,7 @@ export function EmployeesSection() {
   return (
     <section>
       <h2 id="employee-list-heading">Çalışanlar</h2>
+      {canManage && <CreateEmployeeForm />}
       {/* A failed refetch keeps the last list below the error. */}
       {employees.isError && (
         <>

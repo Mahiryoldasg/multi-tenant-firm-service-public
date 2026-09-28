@@ -11,7 +11,7 @@ export function WorkspacePage() {
     <>
       <h1>Firma çalışma alanı</h1>
       {!canManage && <p className="notice">{MEMBER_NOTE_TEXT}</p>}
-      <EmployeesSection />
+      <EmployeesSection canManage={canManage} />
     </>
   );
 }

@@ -44,7 +44,8 @@ main {
   max-width: 360px;
 }
 
-.form h2 {
+.form h2,
+.form h3 {
   margin: 0 0 8px;
 }
 
@@ -53,6 +54,7 @@ main {
 }
 
 input,
+select,
 button {
   font: inherit;
   padding: 6px 10px;
