@@ -257,3 +257,92 @@ Her madde: seçim, neden, bedeli.
 - **Node'un varsayılan scrypt maliyeti** (N=16384, r=8, p=1). Giriş ve testler hızlı kalır. Bedeli:
   OWASP daha yüksek bir maliyet öneriyor; yükseltmek hash biçimine bir sürüm ya da yeniden seed
   gerektirir.
+
+## Sözleşme notları
+
+Sözleşme, bulunan çelişki ve belirsizliklerin DESIGN.md'de "sözleşme notu" olarak yazılmasını
+istiyor. Sözleşmedeki yollar, istek ve yanıt şekilleri değiştirilmedi; sözleşmenin sustuğu yerde
+seçilen davranış ve gerekçesi aşağıda. Swagger açıklamalarında ve kodda geçen not numaraları
+bunlarla aynıdır.
+
+**N1: Node ≥ 18 ve bugünkü ekosistem.** Sözleşme §1 `Node.js ≥ 18` diyor. Node 18'in desteği Nisan
+2025'te, Node 20'ninki Nisan 2026'da bitti. better-sqlite3 13.x Node 22 ve üstünü ister, 12.x Node
+20-26'yı destekler, 11.x ise en yeni Node sürümleri için hazır binary içermez. Node 18'den bugünkü
+sürümlere kadar hazır binary'yle çalışan bir sürüm yok; temiz bir makinede C++ derleme araçları
+gerekirdi. Ne yaptık: `engines` alanında `>=20.19`; Node 22 ve 24 ile doğrulandı; daha eski bir
+Node'da `npm start` anlaşılır bir mesajla durur.
+
+**N2: Bir firma yönetilemez kalabilir.** Son `firm_admin` kendini silebilir ya da `member`'a
+düşürebilir. `platform_admin` `/api/employees`'ta `403` alır (§3) ve firma yolları yalnız adı
+değiştirir; firmayı kurtaracak bir yol kalmaz. Ne yaptık: engellemedik, çünkü sözleşme böyle bir
+kural ya da durum kodu tanımlamıyor ve engellemek sözleşme testleriyle çelişebilirdi. Öneri: platform
+admin'in bir firmaya admin atayabileceği bir endpoint ya da tanımlı bir durum koduyla son admin
+kuralı.
+
+**N3: Silinen firmanın bağlı display'leri.** §2 silinen firmanın display token'larını geçersiz sayar
+ve yeni bağlantıya `connect_error` tanımlar, ama o anda bağlı olan socket'lere ne olacağını
+söylemez. Ne yaptık: firma silme commit edildikten sonra firmanın odasındaki bütün socket'leri
+koparıyoruz; yeniden bağlanma handshake'te reddedilir.
+
+**N4: Display güncel modu öğrenemez.** Display token HTTP'de `401` alır (§2) ve bağlanınca bir
+senkron tanımlı değil (§6 bunu serbest bırakıyor). §4'e göre yeniden bağlanan display'in senkronu
+koşulsuz yayına dayanır; yani display, bir sonraki `POST /api/mode`'a kadar güncel modu bilemez. Ne
+yaptık: bağlanınca kendiliğinden olay göndermiyoruz; sözleşme testlerindeki olay sayısı beklentilerini
+bozabilirdi. Öneri: tanımlı bir socket isteği, örneğin ack ile yanıtlanan bir `mode:get`.
+
+**N5: Çalışanı id ile okuma yok.** A firmasının token'ıyla B firmasının çalışanının
+"okunamaz" olduğunun test edilmesi gerekir ve §3'teki `403` kuralı `/api/employees/:id` yolunu
+"tüm metotlarıyla" anıyor; ama tabloda `GET /api/employees/:id` yok. Ne yaptık: uzantı olarak
+ekledik. Firmadaki herkes kullanabilir; başka firmanın ya da silinmiş bir çalışan `404` alır.
+
+**N6: Mevcut kullanıcıyı veren bir endpoint yok.** Rol oturum ortasında değişebiliyor (§2), ama
+güncel rolü öğrenmenin yolu yok; login yanıtındaki rol eskiyebilir. Ne yaptık: `GET /api/auth/me`
+uzantısı. Kullanıcıyı token'dan değil veritabanından okur ve login'deki `user` ile aynı şekli
+döner; arayüz rol yönlendirmesini buna dayandırır.
+
+**N7: Tanımsız davranışlar.** Sözleşme şunları tanımlamıyor; seçimlerimiz aşağıdaki tabloda:
+
+- e-posta biçim doğrulaması ve dönen e-postanın harf büyüklüğü
+- şifre politikası
+- kullanıcı token'ının ömrü
+- şifre değiştirme (endpoint yok)
+- `member`'ın arayüzde ne göreceği
+- desteklenmeyen HTTP metotları (`405` kod listesinde yok)
+
+**N8: Display token'ında bir kimlik yok.** Sözleşmedeki display claim'leri token'ı ayırt edecek bir
+kimlik içermiyor; §6'da kapsam dışı bırakılan revoke ileride eklenirse buna ihtiyaç olacak. Ne
+yaptık: kayıtlı (registered) `jti` claim'ini ekledik; değeri, token'ın `display_tokens` satırının
+id'sidir. Sözleşmedeki claim'ler değişmedi; revoke uygulanmadı.
+
+### Sözleşmenin sustuğu yerlerde seçimlerimiz
+
+| Konu                       | Seçim                                                                                                                                                                                                                                                                                                                    | Gerekçe                                                                                                                |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| Parse edilemeyen JSON      | `400 VALIDATION_ERROR`. JSON olarak geçerli ama nesne olmayan gövdeler (`"x"`, `null`, `42`) normal kontrol sırasından geçer.                                                                                                                                                                                            | §3 `400` ya da `401`'e izin verir.                                                                                     |
+| Bilinmeyen yol ya da metot | `404 NOT_FOUND` zarfı, `405` yok. `/api` altında önce kimlik doğrulama çalışır: token yoksa `401`.                                                                                                                                                                                                                       | `405` kod listesinde yok; §3 "tüm metotlarıyla".                                                                       |
+| E-posta                    | Kırpılır; `local@domain` biçiminde ve boşluksuz olmalı, yoksa `400`. Büyük/küçük harfe duyarsız karşılaştırılır, gönderildiği harf büyüklüğüyle saklanır ve döner. Kendi e-postasını farklı harflerle göndermek çakışma değildir. Girişte biçim kontrolü yok: biçimsiz bir e-posta kimseyle eşleşmez, normal `401` alır. | §3 duyarsız karşılaştırma; gönderilen biçimi döndürmek eşitlik kontrolleri için en güvenlisi.                          |
+| Şifre                      | Boş olmayan bir string; politika yok; kırpılmadan hash'lenir.                                                                                                                                                                                                                                                            | Sözleşme yalnız boş olmamayı tanımlar.                                                                                 |
+| Zorunlu string'ler         | String ve kırpıldıktan sonra boş olmayan bir değer, yoksa `400`. Bilinmeyen alanlar yok sayılır; güncellenebilir alan içermeyen bir `PATCH` `400` alır.                                                                                                                                                                  | §3 notları.                                                                                                            |
+| Firma adı                  | Kırpılır, benzersiz değil.                                                                                                                                                                                                                                                                                               | `409` yalnız e-posta için tanımlı.                                                                                     |
+| `modeId`                   | Boş olmayan herhangi bir string; kırpılmadan saklanır ve döner.                                                                                                                                                                                                                                                          | §3: opak string.                                                                                                       |
+| Display `label`            | Opsiyonel; gönderilirse string olmalı, yoksa `400`. Token'a değil veritabanına yazılır.                                                                                                                                                                                                                                  | Sözleşme label'ın amacını tanımlamıyor; token'ı büyütmeden kaydıyla birlikte saklanır. Henüz onu döndüren bir yol yok. |
+| Kullanıcı token'ının ömrü  | `USER_TOKEN_TTL`, varsayılan 12 saat; refresh token yok.                                                                                                                                                                                                                                                                 | §6 oturum politikalarını serbest bırakır.                                                                              |
+| Platform admin'de `firmId` | Login yanıtında ve token'da hiç yok, `null` değil.                                                                                                                                                                                                                                                                       | §2 "platform_admin'de firmId yoktur"; §3 ikisini de kabul eder.                                                        |
+| Son `firm_admin`           | Koruma yok.                                                                                                                                                                                                                                                                                                              | N2.                                                                                                                    |
+| Bağlanınca mod             | Gönderilmez.                                                                                                                                                                                                                                                                                                             | N4; §6 serbest bırakır.                                                                                                |
+| Yanıt alanları             | Yalnız sözleşmedeki alanlar.                                                                                                                                                                                                                                                                                             | Ek alan bir şey katmıyor.                                                                                              |
+| Giriş hatası               | Bilinmeyen e-posta, yanlış şifre, silinmiş kullanıcı ve silinmiş firma için aynı `401` mesajı.                                                                                                                                                                                                                           | Hesap tahminini önler.                                                                                                 |
+| `error.message`            | Türkçe, kısa, kullanıcıya yönelik; `code` sözleşmedeki gibi. Eksik ve başka firmanın kaynağı aynı mesajı alır.                                                                                                                                                                                                           | Sözleşme örneği Türkçe; testler `code`'a bakar; i18n kapsam dışı.                                                      |
+| Beklenmeyen hata           | `500 INTERNAL_ERROR`, aynı zarf ve genel bir Türkçe mesaj; ayrıntı yalnız logda.                                                                                                                                                                                                                                         | Sözleşmede sunucu hatası kodu yok; zarfın şekli her yerde aynı kalır.                                                  |
+| Şifre değiştirme           | Endpoint yok.                                                                                                                                                                                                                                                                                                            | Sözleşmede yok (N7).                                                                                |
+| `member` arayüzü           | Çalışanları ve modu salt okunur görür.                                                                                                                                                                                                                                                                                   | N7.                                                                                                                    |
+
+### Sözleşmeye eklenenler
+
+Üç endpoint Swagger'da "(uzantı)" olarak işaretli; diğer ikisi Swagger açıklamalarında yazılı:
+
+- `GET /api/employees/:id` (N5)
+- `GET /api/auth/me` (N6)
+- `GET /health`: kimlik doğrulaması gerektirmeyen canlılık kontrolü
+- `500 INTERNAL_ERROR`: beklenmeyen sunucu hataları için
+- Display token'ında `jti` claim'i (N8)
