@@ -7,6 +7,8 @@ firmalarının `mode-change` olaylarını alır. Dışarıya açılan her şey (
 şekilleri, token'lar, socket olayı, hata kodları)
 API sözleşmesine uyar.
 
+Belgelerin ve kodun nerede olduğu ve önerilen okuma sırası için: [docs/README.md](docs/README.md).
+
 ## Gereksinimler
 
 - Node.js 22 veya 24 LTS (en az 20.19); `node -v` ile kontrol edebilirsiniz

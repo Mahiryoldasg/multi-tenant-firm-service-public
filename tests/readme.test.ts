@@ -26,7 +26,7 @@ describe('README.md', () => {
   });
 });
 
-describe.each(['README.md'])('relative links in %s', (file) => {
+describe.each(['README.md', 'docs/README.md'])('relative links in %s', (file) => {
   it('point to files or folders that exist', () => {
     const folder = path.dirname(path.join(REPO_ROOT, file));
     const targets = [...read(file).matchAll(/\]\(([^)\s]+)\)/g)]
