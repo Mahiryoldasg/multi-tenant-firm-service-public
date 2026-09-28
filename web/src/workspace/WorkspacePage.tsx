@@ -1,5 +1,6 @@
 import { useCurrentUser } from '../auth/SessionGate.tsx';
 import { EmployeesSection } from './EmployeesSection.tsx';
+import { ModePanel } from './ModePanel.tsx';
 
 const MEMBER_NOTE_TEXT = 'Üye olarak çalışanları ve aktif modu yalnızca görüntüleyebilirsiniz.';
 
@@ -15,6 +16,7 @@ export function WorkspacePage() {
       {/* Keyed by role: a role change starts the section fresh, so no edit mode or row message
           from the old role comes back with a later promotion. */}
       <EmployeesSection key={role} canManage={canManage} />
+      <ModePanel canManage={canManage} />
     </>
   );
 }

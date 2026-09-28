@@ -44,6 +44,10 @@ main {
   max-width: 360px;
 }
 
+section + section {
+  margin-top: 32px;
+}
+
 .form h2,
 .form h3 {
   margin: 0 0 8px;
