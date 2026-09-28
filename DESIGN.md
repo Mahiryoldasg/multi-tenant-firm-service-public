@@ -346,3 +346,119 @@ id'sidir. Sözleşmedeki claim'ler değişmedi; revoke uygulanmadı.
 - `GET /health`: kimlik doğrulaması gerektirmeyen canlılık kontrolü
 - `500 INTERNAL_ERROR`: beklenmeyen sunucu hataları için
 - Display token'ında `jti` claim'i (N8)
+
+## Database-per-tenant
+
+Tasarım sorusu:
+
+> Sistem büyürse **database-per-tenant** modeline geçiş ne zaman ve neden mantıklı olur? Bu
+> şema bu geçişi kolaylaştırıyor mu, zorlaştırıyor mu?
+
+Bugünkü ölçekte paylaşımlı veritabanı doğru varsayılan: tek şema, tek migration, yeni bir firma
+yalnız bir satır, izolasyon da yukarıda anlatılan yapıyla sağlanıyor.
+
+### Ne zaman ve neden
+
+Geçiş şu durumlarda mantıklı olur:
+
+- **Gürültülü komşu ya da sıcak noktalar:** bir firmanın yükü diğer firmaların gecikmesini
+  bozuyorsa, o firmayı kendi veritabanına almak yükü ayırır.
+- **Sözleşmesel ya da yasal fiziksel izolasyon:** KVKK kapsamındaki bir gereksinim ya da verisinin
+  başka firmalarla aynı veritabanında durmasını kabul etmeyen kurumsal bir müşteri.
+- **Firma bazında yedekleme ve geri yükleme:** paylaşımlı bir veritabanında tek bir firmanın
+  verisini bir ana geri döndürmek zordur; ayrı bir veritabanında bu sıradan bir geri yüklemedir.
+- **Veri yerleşimi:** bir firmanın verisinin belirli bir ülkede ya da bölgede tutulması gerekiyorsa.
+
+Bedelleri: her şema değişikliği N veritabanına uygulanır; bağlantı yönetimi (havuzlar, açık
+dosya ve bağlantı sayısı) büyür; firmalar arası raporlama zorlaşır; izleme, yedek ve sürüm takibi
+gibi operasyon yükü artar. Bu yüzden geçiş hepsi bir arada olmak zorunda değil: firmaların çoğu
+paylaşımlı veritabanında kalırken yalnız bu şartları taşıyan firmalar kendi veritabanlarına
+alınabilir.
+
+### Şemamız geçişi kolaylaştırıyor mu?
+
+**Büyük ölçüde kolaylaştırıyor; tek ciddi zorluk, e-postayla girişin firmadan bağımsız olması.**
+
+Kolaylaştıranlar:
+
+- **Her tenant satırında `firm_id` var.** `users` ve `display_tokens` satırları firmalarına
+  bağlı, aktif mod firmanın kendi satırında. Bir firmanın bütün verisi tek bir koşulla eksiksiz
+  ayrılabilir.
+- **Firmalar arası foreign key yok.** Bir satır yalnız kendi firmasına ve o firmanın
+  kullanıcılarına bağlanır (display token'ı üreten kullanıcı da aynı firmadandır); firmalar
+  birbirinden koparıldığında kırılan bir ilişki kalmaz.
+- **UUID kimlikler.** Veritabanları bölünse ya da birleştirilse kimlikler çakışmaz; otomatik artan
+  sayılar olsaydı yeniden numaralama gerekirdi.
+- **`createTenantScope` tek dikiş noktası.** Tenant kodu veriye yalnız buradan ulaşıyor. Geçişte bu
+  fonksiyon firmanın kendi veritabanı bağlantısını seçip repository'lere verir; route'lar ve
+  handler'lar değişmez.
+- **Migration'lar bağlantı başına çalışıyor.** `PRAGMA user_version` her veritabanı dosyasının kendi
+  sürümünü tutar; aynı mekanizma her firma dosyasına uygulanabilir.
+
+Zorlaştıranlar:
+
+- **E-posta tüm sistemde benzersiz ve giriş yalnız e-posta ve şifre alıyor** (sözleşme §3). Giriş
+  anında kullanıcının hangi firmadan olduğu bilinmiyor. Firma veritabanları ayrıldığında "bu
+  e-posta kimin?" sorusunu cevaplayacak bir kontrol düzlemi (control plane) dizini gerekir:
+  e-postadan firmaya bir eşleme, benzersizlik de orada zorlanır. Bugün koşullu benzersiz index bunu
+  tek veritabanında kendiliğinden yapıyor; ayrıldığında e-posta ekleme, değiştirme ve silme hem
+  dizine hem firma veritabanına yazılmalı ve ikisi tutarlı tutulmalıdır.
+- **Firmalar, platform admin ve `meta` kontrol düzleminde kalır.** Firma oluşturmak yeni bir
+  veritabanı açmak, firma silmek de hem dizini hem firma veritabanını değiştirmek demektir.
+- **`authenticate` her istekte kullanıcıyı `sub` ile okuyor.** Hangi veritabanına bakacağını bilmek
+  için token'daki `firmId`'ye ya da dizine başvurması gerekir. `firmId` bugün yalnız bir ipucu;
+  orada yalnız yönlendirme için kullanılır, doğrulama yine firma veritabanındaki satırla yapılır.
+
+Gerçek zamanlı kanal etkilenmez: odalar zaten doğrulanmış token'daki `firmId` ile ayrılıyor;
+handshake'teki aktif firma kontrolü kontrol düzleminden yapılır.
+
+## Önceliklendirme
+
+Öncelikler: gerekçeli önceliklendirme, sözleşmeye
+birebir uyum (sözleşme testleri), yapısal tenant izolasyonu (ana odak), sızıntısız bir gerçek zamanlı
+kanal, temiz bir makinede tek komutla çalışma, anlamlı bir commit geçmişi ve sözleşme hatalarının
+bildirilmesi. İşler bu önceliklere göre üç gruba ayrıldı
+([blueprint/build-plan.md](blueprint/build-plan.md)):
+
+- **P0, sözleşme çekirdeği (1-9):** sözleşme testlerinin doğrulayacağı her şey. Sıra bağımlılıklara
+  göre: önce şema ve seed (şema baştan kilitlendi, sonraki her şey ona dayanıyor), sonra hata zarfı
+  ve giriş, her isteğin ilk kapısı olan kimlik doğrulama ve firma yönetimi. Tenant scope katmanı,
+  onu kullanacak çalışan ve mod endpoint'lerinden önce yazıldı; böylece hiçbir tenant sorgusu bu
+  katman olmadan yazılmadı. Gerçek zamanlı kanal mod ve display token'ı hazır olunca geldi. P0'ı,
+  sözleşme testlerinin aynası olan izolasyon ve sözleşme test matrisi kapattı.
+- **P1, zorunlu teslimler (10-16):** Swagger, kontrol arayüzü, display simülatörü, tek komutla
+  çalışma ve README, bu belge ve mimari diyagram. Çekirdek testlerle doğrulanmadan başlanmadı.
+- **P2, bonus (17-19):** kontrol arayüzünde canlı mod, display'in güncel modu isteyebilmesi ve
+  cihaz eşleştirme akışı; yalnız P0 ve P1 yeşilken.
+
+Gerçekleşen (`git log --first-parent main`):
+
+- P0'ın dokuz maddesi 25.09 ile 27.09 13:38 arasında `main`'e girdi; ilk kontrol noktası
+  tetiklenmedi.
+- P1'in 10-14 maddeleri 27.09 akşamı ile 28.09 akşamı arasında bitti; README ve tek komutla
+  çalışma planın bir gün önünde tamamlandı.
+- Bu belge yazılırken (29.09 gecesi) P1'den yalnız bu belge ve mimari diyagram kalmıştı; P2
+  maddelerine başlanmamıştı.
+
+Her özellik küçük, incelenmiş adımlarla ve adım başına bir commit'le yapıldı. İncelemelerde bulunan
+hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
+
+## Daha fazla zamanım olsaydı
+
+- **Yatay ölçekleme:** Socket.IO için Redis adapter ve paylaşılan bir veritabanı sunucusu; birden
+  fazla instance ancak böyle aynı firmanın display'lerine yayın yapabilir.
+- **Display token iptali:** `jti` üzerinden bir iptal listesi, firmanın token'larını `label`'larıyla
+  listeleme ve arayüzden iptal etme (N8).
+- **N2'nin çözümü:** platform admin'in bir firmaya admin atayabilmesi ya da tanımlı bir durum
+  koduyla son admin kuralı.
+- **Şifre değiştirme ve şifre politikası** (N7).
+- **Refresh token ve oturum politikaları:** daha kısa ömürlü erişim token'ları, oturum kapatınca
+  token'ın geçersizleşmesi.
+- **Girişte rate limiting** ve bir **audit log**; ikisi de bu projenin kapsamı dışında.
+- **Daha yüksek bir scrypt maliyeti:** hash biçimine bir sürüm ekleyerek, mevcut hash'leri bozmadan.
+- **Unix benzeri bir sistemde temiz klon doğrulaması:** README, Windows'ta Node 22 ve 24 ile temiz
+  klondan doğrulandı; WSL ya da Linux'ta denenmedi.
+- **Tarayıcıda uçtan uca testler:** arayüzün DOM'suz modülleri test ediliyor, ama bir tarayıcı test
+  altyapısı yok; arayüz elle doğrulandı.
+- **P2 bonusları** (bu belge yazılırken yapılmamıştı): kontrol arayüzünde socket ile canlı mod,
+  display'in güncel modu isteyebildiği ack'li bir `mode:get` (N4) ve cihaz eşleştirme akışı.
