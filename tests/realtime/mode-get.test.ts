@@ -5,10 +5,13 @@ import { userTokenFor } from '../helpers/auth.ts';
 import { TEST_SEED } from '../helpers/db.ts';
 import { createCapturingLogger } from '../helpers/log.ts';
 import {
+  connectControl,
   connected,
   issueDisplayToken,
   nextModeChange,
+  nextModeChanged,
   recordingDisplay,
+  recordModeChangedSignals,
   requestMode,
   setModeAndAwait,
   startTestServer,
@@ -86,10 +89,13 @@ describe('mode:get', () => {
     expect(await requestMode(display.socket)).toStrictEqual({ modeId: 'second' });
   });
 
-  it("emits no event to the asking display or to the firm's other displays", async () => {
+  it("emits no event to the asking display or to the firm's other displays and control screens", async () => {
     const s = await start();
     const asking = await connectedDisplay(s);
     const other = await connectedDisplay(s);
+    const control = connectControl(s.url, { token: userTokenFor(s.db, FIRST_ADMIN_EMAIL) });
+    const signals = recordModeChangedSignals(control);
+    await connected(control);
 
     await requestMode(asking.socket);
     await requestMode(asking.socket);
@@ -97,10 +103,35 @@ describe('mode:get', () => {
     // Barrier: the server answered both requests before this broadcast, and Socket.IO keeps order
     // per connection, so an event sent while answering would have arrived first.
     const otherNext = nextModeChange(other.socket);
+    const controlNext = nextModeChanged(control);
     await setModeAndAwait(s, FIRST_ADMIN_EMAIL, 'barrier', asking);
-    await otherNext;
+    await Promise.all([otherNext, controlNext]);
     expect(asking.received).toEqual([[{ modeId: 'barrier' }]]);
     expect(other.received).toEqual([[{ modeId: 'barrier' }]]);
+    expect(signals).toEqual([[]]);
+  });
+
+  it('is not answered on /control', async () => {
+    const s = await start();
+    const control = connectControl(s.url, { token: userTokenFor(s.db, FIRST_ADMIN_EMAIL) });
+    const signals = recordModeChangedSignals(control);
+    await connected(control);
+    const serverSide = s.realtime.io.of('/control').sockets.get(control.id ?? '');
+    if (!serverSide) throw new Error('No server-side socket for the control client');
+    // Added after any listener the server registered on connection, so it runs after them in the
+    // same emit: once it has run, an answer would already be written.
+    const read = new Promise<void>((resolve) => serverSide.on('mode:get', () => resolve()));
+
+    const answers: unknown[] = [];
+    control.emit('mode:get', (answer: unknown) => answers.push(answer));
+    await read;
+
+    // Barrier: an answer written before this signal would have arrived first.
+    const next = nextModeChanged(control);
+    s.realtime.broadcastModeChange(firmId(s, 'First Test Firm'), 'barrier');
+    await next;
+    expect(answers).toEqual([]);
+    expect(signals).toEqual([[]]);
   });
 
   it('ignores a request without an ack and keeps the display connected', async () => {
