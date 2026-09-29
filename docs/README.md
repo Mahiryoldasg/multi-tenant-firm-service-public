@@ -13,7 +13,8 @@ Kurulum ve çalıştırma için [ana README](../README.md) dosyasına bakın.
    tenant izolasyonunun uygulandığı noktalar (DESIGN.md'deki numaralarla), gerçek zamanlı kanal
    ve kontrol arayüzünün API'yi nasıl kullandığı, tek resimde.
 4. [DESIGN.md](../DESIGN.md): veri modeli, tenant izolasyonunun nerede uygulandığı, kimlik
-   doğrulama, trade-off'lar, sözleşme notları, database-per-tenant cevabı ve önceliklendirme.
+   doğrulama, trade-off'lar, sözleşme notları, database-per-tenant cevabı, cihaz eşleştirme
+   tasarımı ve önceliklendirme.
 5. [Karar günlüğü](decisions.md) (İngilizce): her özellik kapanırken yazılan kısa "neden" notları.
 6. [Build plan](../blueprint/build-plan.md) ve
    [tamamlanan özelliklerin spec'leri](../blueprint/history/features/) (İngilizce): işin hangi
@@ -36,12 +37,12 @@ Kurulum ve çalıştırma için [ana README](../README.md) dosyasına bakın.
 
 ### Belgeler
 
-| Yol                                                                                        | İçerik                                                                                                                                           |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [README.md](../README.md)                                                                  | Kurulum, tek komutla çalıştırma, seed hesapları, curl örnekleri, test komutu                                                                     |
-| [DESIGN.md](../DESIGN.md)                                                                  | Tasarım: veri modeli, izolasyon, kimlik doğrulama, trade-off'lar, sözleşme notları, database-per-tenant, önceliklendirme, AI kullanımı           |
-| [docs/architecture.png](architecture.png), [docs/architecture.drawio](architecture.drawio) | Mimari diyagram ve draw.io kaynağı: katmanlar, izolasyon noktaları (DESIGN.md'deki numaralarla), gerçek zamanlı kanal, arayüzün API'yi kullanışı |
-| [docs/decisions.md](decisions.md)                                                          | Karar günlüğü: özellik bazında tarihli "neden" notları (İngilizce)                                                                               |
+| Yol                                                                                        | İçerik                                                                                                                                                            |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [README.md](../README.md)                                                                  | Kurulum, tek komutla çalıştırma, seed hesapları, curl örnekleri, test komutu                                                                                      |
+| [DESIGN.md](../DESIGN.md)                                                                  | Tasarım: veri modeli, izolasyon, kimlik doğrulama, trade-off'lar, sözleşme notları, database-per-tenant, cihaz eşleştirme tasarımı, önceliklendirme, AI kullanımı |
+| [docs/architecture.png](architecture.png), [docs/architecture.drawio](architecture.drawio) | Mimari diyagram ve draw.io kaynağı: katmanlar, izolasyon noktaları (DESIGN.md'deki numaralarla), gerçek zamanlı kanal, arayüzün API'yi kullanışı                  |
+| [docs/decisions.md](decisions.md)                                                          | Karar günlüğü: özellik bazında tarihli "neden" notları (İngilizce)                                                                                                |
 
 ### Planlar ve spec'ler
 

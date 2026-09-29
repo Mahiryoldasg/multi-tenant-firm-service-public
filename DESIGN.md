@@ -649,7 +649,7 @@ bildirilmesi. İşler bu önceliklere göre üç gruba ayrıldı
 - **P1, zorunlu teslimler (10-16):** Swagger, kontrol arayüzü, display simülatörü, tek komutla
   çalışma ve README, bu belge ve mimari diyagram. Çekirdek testlerle doğrulanmadan başlanmadı.
 - **P2, bonus (17-19):** kontrol arayüzünde canlı mod, display'in güncel modu isteyebilmesi ve
-  cihaz eşleştirme akışı; yalnız P0 ve P1 yeşilken.
+  cihaz eşleştirme akışının tasarımı (kod yok); yalnız P0 ve P1 yeşilken.
 
 Gerçekleşen (`git log --first-parent main`):
 
@@ -662,6 +662,8 @@ Gerçekleşen (`git log --first-parent main`):
 - Mimari diyagram 29.09'da, bu belgeden sonra eklendi; P1 böylece tamamlandı.
 - P2'nin 17. maddesi (kontrol arayüzünde canlı mod) 29.09'da yapıldı.
 - P2'nin 18. maddesi (display'in güncel modu `mode:get` ile isteyebilmesi) de 29.09'da yapıldı.
+- P2'nin 19. maddesi (cihaz eşleştirme) 29.09'da kod yazılmadan, yalnız bu belgede tasarım olarak
+  eklendi; P2 böylece tamamlandı.
 
 Her özellik küçük, incelenmiş adımlarla ve adım başına bir commit'le yapıldı. İncelemelerde bulunan
 hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
@@ -683,7 +685,8 @@ hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
   klondan doğrulandı; WSL ya da Linux'ta denenmedi.
 - **Tarayıcıda uçtan uca testler:** arayüzün DOM'suz modülleri test ediliyor, ama bir tarayıcı test
   altyapısı yok; arayüz elle doğrulandı.
-- **Kalan P2 bonusu:** cihaz eşleştirme akışı.
+- **Cihaz eşleştirmenin uygulanması:** yukarıdaki tasarımın kodu ve testleri, herkese açık iki
+  ucu için rate limiting de dahil.
 
 ## AI kullanımı
 
