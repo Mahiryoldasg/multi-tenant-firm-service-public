@@ -63,6 +63,16 @@ export function connectDisplay(url: string, auth?: Record<string, unknown>): Soc
   return client;
 }
 
+/**
+ * A control client on `/control` (not in the contract), like `connectDisplay`: its own connection,
+ * never reconnecting, closed at teardown.
+ */
+export function connectControl(url: string, auth?: Record<string, unknown>): Socket {
+  const client = io(`${url}/control`, { auth, forceNew: true, reconnection: false });
+  clients.add(client);
+  return client;
+}
+
 /** Resolves once the client connects; rejects with its `connect_error` instead. */
 export function connected(client: Socket): Promise<void> {
   return within('connect', (resolve, reject) => {
@@ -124,6 +134,20 @@ export async function setModeAndAwait(
 export function recordModeChanges(client: Socket): unknown[][] {
   const received: unknown[][] = [];
   client.on('mode-change', (...args: unknown[]) => received.push(args));
+  return received;
+}
+
+/** Resolves with the argument list of the client's next `mode:changed`. */
+export function nextModeChanged(client: Socket): Promise<unknown[]> {
+  return within('mode:changed', (resolve) => {
+    client.once('mode:changed', (...args: unknown[]) => resolve(args));
+  });
+}
+
+/** Every `mode:changed` argument list the client receives from now on, in order. */
+export function recordModeChangedSignals(client: Socket): unknown[][] {
+  const received: unknown[][] = [];
+  client.on('mode:changed', (...args: unknown[]) => received.push(args));
   return received;
 }
 

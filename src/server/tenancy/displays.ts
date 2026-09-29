@@ -5,7 +5,10 @@ export type ModeBroadcaster = Pick<Realtime, 'broadcastModeChange'>;
 
 /** The connected displays of one firm. No method takes a firm id: the firm is fixed at construction. */
 export interface DisplayChannel {
-  /** Sends `mode-change` with this `modeId` to the firm's connected displays only. */
+  /**
+   * Sends `mode-change` with this `modeId` to the firm's connected displays only, and the
+   * payload-free `mode:changed` to the firm's open control screens only.
+   */
   broadcastModeChange(modeId: string): void;
 }
 
