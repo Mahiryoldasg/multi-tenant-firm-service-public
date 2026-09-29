@@ -1,0 +1,273 @@
+<mxfile host="drawio" version="31.5.3">
+  <diagram id="architecture" name="Mimari">
+    <mxGraphModel dx="1740" dy="1280" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1740" pageHeight="1280" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Title -->
+        <mxCell id="title" value="Multi-tenant firma servisi: mimari" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=22;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="12" width="1700" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Tek Node.js süreci ve tek http sunucusu (src/server/index.ts, port 4000): Express ve Socket.IO aynı sunucuda çalışır. Kırmızı çerçeveli, numaralı kutular tenant izolasyonunun uygulandığı yerlerdir; numaralar DESIGN.md içindeki Tenant izolasyonu → Nerede uygulanır maddeleriyle aynıdır." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=13;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="20" y="46" width="1700" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Layer bands -->
+        <mxCell id="band-clients" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECECEC;strokeColor=#E3E3E3;" vertex="1" parent="1">
+          <mxGeometry x="20" y="90" width="1705" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="band-api" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#E3E3E3;" vertex="1" parent="1">
+          <mxGeometry x="20" y="235" width="1705" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="band-auth" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECECEC;strokeColor=#E3E3E3;" vertex="1" parent="1">
+          <mxGeometry x="20" y="385" width="1705" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="band-routes" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#E3E3E3;" vertex="1" parent="1">
+          <mxGeometry x="20" y="555" width="1705" height="175" as="geometry" />
+        </mxCell>
+        <mxCell id="band-scoping" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECECEC;strokeColor=#E3E3E3;" vertex="1" parent="1">
+          <mxGeometry x="20" y="730" width="1705" height="165" as="geometry" />
+        </mxCell>
+        <mxCell id="band-data" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F5F5;strokeColor=#E3E3E3;" vertex="1" parent="1">
+          <mxGeometry x="20" y="895" width="1705" height="125" as="geometry" />
+        </mxCell>
+
+        <mxCell id="label-clients" value="&lt;b&gt;İstemciler&lt;/b&gt;&lt;br&gt;tarayıcı, test paketi, cihaz" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="30" y="90" width="125" height="135" as="geometry" />
+        </mxCell>
+        <mxCell id="label-api" value="&lt;b&gt;API&lt;/b&gt;&lt;br&gt;HTTP girişi ve socket sunucusu" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="30" y="235" width="125" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="label-auth" value="&lt;b&gt;Auth&lt;/b&gt;&lt;br&gt;kimlik doğrulama ve yetki kapıları" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="30" y="385" width="125" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="label-routes" value="&lt;b&gt;Route'lar&lt;/b&gt;&lt;br&gt;istek işleme" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="30" y="555" width="125" height="175" as="geometry" />
+        </mxCell>
+        <mxCell id="label-scoping" value="&lt;b&gt;Scoping&lt;/b&gt;&lt;br&gt;firmaya bağlı erişim" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="30" y="730" width="125" height="165" as="geometry" />
+        </mxCell>
+        <mxCell id="label-data" value="&lt;b&gt;Veri&lt;/b&gt;&lt;br&gt;SQLite" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="30" y="895" width="125" height="125" as="geometry" />
+        </mxCell>
+
+        <!-- Clients -->
+        <mxCell id="client-ui" value="&lt;b&gt;Kontrol arayüzü&lt;/b&gt; (React SPA, web/src/)&lt;br&gt;yalnız herkese açık API'yi kullanır:&lt;br&gt;fetch + Authorization: Bearer &amp;lt;kullanıcı JWT&amp;gt;&lt;br&gt;token sessionStorage'da; 401 oturumu kapatır" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="325" y="105" width="300" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="client-swagger" value="&lt;b&gt;Swagger UI&lt;/b&gt; (/docs)&lt;br&gt;OpenAPI belgesi: /openapi.json&lt;br&gt;Authorize ile yapıştırılan Bearer &amp;lt;kullanıcı JWT&amp;gt;" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="640" y="105" width="270" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="client-api" value="&lt;b&gt;API istemcileri&lt;/b&gt;&lt;br&gt;test paketi, curl&lt;br&gt;Authorization: Bearer &amp;lt;kullanıcı JWT&amp;gt;" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="925" y="105" width="280" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="client-display-a" value="&lt;b&gt;Display (Firma A)&lt;/b&gt;&lt;br&gt;cihaz ya da /display simülatörü&lt;br&gt;io(url, { auth: { token } })&lt;br&gt;token: A'nın display token'ı" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="105" width="225" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="client-display-b" value="&lt;b&gt;Display (Firma B)&lt;/b&gt;&lt;br&gt;cihaz ya da /display simülatörü&lt;br&gt;io(url, { auth: { token } })&lt;br&gt;token: B'nin display token'ı" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="105" width="225" height="105" as="geometry" />
+        </mxCell>
+
+        <!-- API layer -->
+        <mxCell id="express" value="&lt;b&gt;Express uygulaması&lt;/b&gt; (src/server/app.ts)&lt;br&gt;pino-http (JSON log) → jsonBodyParser (bozuk JSON: 400)&lt;br&gt;herkese açık yollar: /health, /openapi.json, /docs, POST /api/auth/login (kullanıcı JWT'si üretir, HS256)&lt;br&gt;üretimde arayüz: dist/web statik dosyaları ve SPA fallback, aynı origin&lt;br&gt;kapıların sırası sözleşmenin kontrol sırasını verir: 401 → 403 → 404 → 400 → 409" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="325" y="250" width="880" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="socket-server" value="&lt;b&gt;Socket.IO sunucusu&lt;/b&gt; (src/server/realtime/)&lt;br&gt;index.ts'te aynı http sunucusuna bağlanır, yol /socket.io&lt;br&gt;istemciden hiçbir olay dinlemez; bağlanınca hiçbir şey göndermez" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="250" width="465" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="error-handler" value="&lt;b&gt;errorHandler&lt;/b&gt;&lt;br&gt;(http/error-handler.ts)&lt;br&gt;&lt;br&gt;pipeline'ın ve handler'ların her hatası tek zarfa döner:&lt;br&gt;{ error: { code, message } }&lt;br&gt;&lt;br&gt;başka firmanın, hiç olmayan ve silinmiş kaynağı aynı 404'ü ve aynı mesajı alır&lt;br&gt;&lt;br&gt;iç ayrıntılar yalnız loglara gider" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=12;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="170" y="250" width="140" height="462" as="geometry" />
+        </mxCell>
+
+        <!-- Auth layer -->
+        <mxCell id="authenticate" value="&lt;b&gt;authenticate&lt;/b&gt; (/api altında login dışındaki her yol): Bearer JWT doğrulanır; kullanıcı ve firması &lt;b&gt;her istekte&lt;/b&gt; veritabanından yeniden okunur, rol ve firma token'dan gelmez.&lt;br&gt;Kullanıcı ya da firma yoksa veya silinmişse, token display token'ıysa: 401. Ardından GET /api/auth/me." style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="325" y="396" width="880" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="require-tenant" value="&lt;b&gt;requireTenant&lt;/b&gt; (/api/employees, /api/mode, /api/display-tokens)&lt;br&gt;platform admin: her metot ve alt yolda 403&lt;br&gt;firma kullanıcısı: req.tenant = createTenantScope(db, firmId, realtime)" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="325" y="474" width="435" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="require-platform-admin" value="&lt;b&gt;requirePlatformAdmin&lt;/b&gt; (/api/firms)&lt;br&gt;platform admin değilse her metot ve alt yolda 403" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="775" y="474" width="430" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="handshake" value="&lt;b&gt;Handshake&lt;/b&gt; (io.use → authenticateDisplay)&lt;br&gt;yalnız display token: HS256, kind: 'display', string firmId, sub ve role yok&lt;br&gt;firma hâlâ aktif mi: firms tablosundan okunur&lt;br&gt;kullanıcı token'ı, geçersiz token ya da silinmiş firma: connect_error&lt;br&gt;socket.data.firmId token'dan değil firma satırından gelir" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="396" width="465" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- Route layer -->
+        <mxCell id="lint-boundary" value="&lt;b&gt;ESLint sınırı&lt;/b&gt; (npm run lint): modules/tenant/** dosyaları&lt;br&gt;better-sqlite3'ü, db ve platform modüllerini import edemez" style="rounded=1;arcSize=4;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#B85450;strokeWidth=2;dashed=1;dashPattern=8 4;fontSize=11;align=left;verticalAlign=top;spacingLeft=24;spacingTop=2;spacingRight=70;" vertex="1" parent="1">
+          <mxGeometry x="325" y="566" width="435" height="156" as="geometry" />
+        </mxCell>
+        <mxCell id="tenant-routes" value="&lt;b&gt;Tenant route'ları&lt;/b&gt; (modules/tenant/)&lt;br&gt;çalışanlar, mod, display token üretimi&lt;br&gt;db almaz; veriye yalnız getTenant(req) ile ulaşır&lt;br&gt;yazmalarda requireFirmAdmin: member 403&lt;br&gt;firmaya bağlı arama 404 → Zod 400 → servis 409" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="337" y="606" width="411" height="106" as="geometry" />
+        </mxCell>
+        <mxCell id="platform-module" value="&lt;b&gt;Platform modülü&lt;/b&gt; (modules/platform/)&lt;br&gt;firma listeleme, oluşturma (ilk admin'le, atomik), ad değiştirme, soft delete&lt;br&gt;firma verisine platform düzeyinde, db ile doğrudan erişir&lt;br&gt;firma silinince realtime.disconnectFirm(firmId)&lt;br&gt;giriş, authenticate ve handshake de kullanıcı ve firma aramasını buradan yapar" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="775" y="572" width="430" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="rooms" value="&lt;b&gt;Firma odaları&lt;/b&gt; (iç ad: firm:&amp;lt;firmId&amp;gt;)" style="rounded=1;arcSize=3;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=top;spacingLeft=24;spacingTop=6;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="1250" y="572" width="465" height="305" as="geometry" />
+        </mxCell>
+        <mxCell id="room-a" value="&lt;b&gt;firm:A&lt;/b&gt;&lt;br&gt;Firma A'nın display'leri" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="612" width="205" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="room-b" value="&lt;b&gt;firm:B&lt;/b&gt;&lt;br&gt;Firma B'nin display'leri" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="612" width="205" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="rooms-notes" value="İstemci oda seçemez: socket, handshake'te doğrulanan firmanın odasına girer (socket.join).&lt;br&gt;broadcastModeChange(firmId, modeId): mode-change { modeId } yalnız o firmanın odasına gider; her başarılı POST /api/mode, değer değişmese de gönderir.&lt;br&gt;disconnectFirm(firmId): firma silinince odadaki bütün socket'ler koparılır; yeniden bağlanma handshake'te reddedilir." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1265" y="725" width="440" height="145" as="geometry" />
+        </mxCell>
+
+        <!-- Scoping layer -->
+        <mxCell id="tenancy" value="&lt;b&gt;Firmaya bağlı repository'ler&lt;/b&gt; (src/server/tenancy/)&lt;br&gt;req.tenant: employees, mode, displayTokens, displays&lt;br&gt;firma, scope kurulurken bir kez verilir; hiçbir metot firma id'si almaz&lt;br&gt;tenant sorgularının firma koşulu (firm_id = @firmId) yalnız burada yazılır" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="325" y="748" width="435" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Data layer -->
+        <mxCell id="database" value="&lt;b&gt;SQLite&lt;/b&gt; (better-sqlite3, src/server/db/, dosya: DB_PATH): tek, paylaşılan veritabanı&lt;br&gt;firms (aktif mod: active_mode_id), users (firm_id; platform admin'de boş), display_tokens (firm_id), meta (seed işareti)&lt;br&gt;açılışta migration'lar ve yalnız bir kez çalışan seed; firmalar ve kullanıcılar soft delete ile silinir (deleted_at)" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#E1D5E7;strokeColor=#9673A6;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="170" y="910" width="1545" height="95" as="geometry" />
+        </mxCell>
+
+        <!-- HTTP edges -->
+        <mxCell id="edge-ui-express" value="HTTP JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3D6DB3;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.1705;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="client-ui" target="express">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-swagger-express" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3D6DB3;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5114;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="client-swagger" target="express">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-clients-express" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3D6DB3;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.8409;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="client-api" target="express">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-express-authenticate" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3D6DB3;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="express" target="authenticate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-authenticate-tenant" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3D6DB3;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.2472;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="authenticate" target="require-tenant">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-authenticate-platform" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3D6DB3;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.7557;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="authenticate" target="require-platform-admin">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-tenant-routes" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3D6DB3;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.8621;exitY=1;exitDx=0;exitDy=0;entryX=0.8832;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="require-tenant" target="tenant-routes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-platform-routes" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#3D6DB3;strokeWidth=2;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="require-platform-admin" target="platform-module">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Socket edges -->
+        <mxCell id="edge-display-a" value="handshake: auth.token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E7D32;strokeWidth=2;dashed=1;dashPattern=6 4;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2419;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="client-display-a" target="socket-server">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-display-b" value="olay: mode-change { modeId }" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E7D32;strokeWidth=2;dashed=1;dashPattern=6 4;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.7581;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="client-display-b" target="socket-server">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-socket-handshake" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=1.5;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="socket-server" target="handshake">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-handshake-rooms" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=1.5;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="handshake" target="rooms">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Internal calls and SQL -->
+        <mxCell id="edge-routes-tenancy" value="getTenant(req)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=1.5;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tenant-routes" target="tenancy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-tenancy-db" value="SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=1.5;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2411;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tenancy" target="database">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-platform-db" value="SQL" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=1.5;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5307;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="platform-module" target="database">
+          <mxGeometry x="0.7" relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-platform-rooms" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=1.5;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.4857;exitDx=0;exitDy=0;entryX=0;entryY=0.2230;entryDx=0;entryDy=0;" edge="1" parent="1" source="platform-module" target="rooms">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-tenancy-rooms" value="POST /api/mode:&lt;br&gt;displays.broadcastModeChange(modeId)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666666;strokeWidth=1.5;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=1;exitY=0.4769;exitDx=0;exitDy=0;entryX=0;entryY=0.7803;entryDx=0;entryDy=0;" edge="1" parent="1" source="tenancy" target="rooms">
+          <mxGeometry x="0.5" relative="1" as="geometry">
+            <mxPoint y="-20" as="offset" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Isolation badges (numbers match DESIGN.md, Nerede uygulanır) -->
+        <mxCell id="badge-authenticate" value="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="312" y="383" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="badge-require-tenant" value="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="312" y="461" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="badge-require-platform-admin" value="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="762" y="461" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="badge-tenancy" value="2" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="312" y="735" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="badge-tenant-routes" value="3" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="324" y="593" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="badge-lint" value="4" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="312" y="553" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="badge-error-handler" value="5" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="157" y="237" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="badge-handshake" value="6" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1237" y="383" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="badge-rooms" value="6" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1237" y="559" width="28" height="28" as="geometry" />
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="" style="rounded=1;arcSize=3;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#BBBBBB;" vertex="1" parent="1">
+          <mxGeometry x="20" y="1040" width="1705" height="222" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-title" value="&lt;b&gt;Gösterim&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="35" y="1048" width="300" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-badge" value="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#B85450;strokeColor=#FFFFFF;strokeWidth=2;fontColor=#FFFFFF;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="61" y="1078" width="28" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-badge-text" value="Kırmızı çerçeve ve numara: tenant izolasyonunun uygulandığı yer" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="125" y="1078" width="470" height="28" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-http" value="" style="endArrow=block;endFill=1;html=1;rounded=0;strokeColor=#3D6DB3;strokeWidth=2;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="40" y="1128" as="sourcePoint" />
+            <mxPoint x="110" y="1128" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-http-text" value="HTTP isteği" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="125" y="1118" width="470" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-socket" value="" style="startArrow=block;startFill=1;endArrow=block;endFill=1;html=1;rounded=0;strokeColor=#2E7D32;strokeWidth=2;dashed=1;dashPattern=6 4;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="40" y="1163" as="sourcePoint" />
+            <mxPoint x="110" y="1163" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-socket-text" value="Socket.IO bağlantısı (WebSocket) ve mode-change olayı" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="125" y="1153" width="470" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-internal" value="" style="endArrow=block;endFill=1;html=1;rounded=0;strokeColor=#666666;strokeWidth=1.5;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="40" y="1198" as="sourcePoint" />
+            <mxPoint x="110" y="1198" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-internal-text" value="Sunucu içi çağrı ya da SQL" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="125" y="1188" width="470" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-lint" value="" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#B85450;strokeWidth=2;dashed=1;dashPattern=8 4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1220" width="70" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-lint-text" value="Derleme zamanı kontrolü (lint), çalışma zamanında değil" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="125" y="1223" width="470" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-points" value="&lt;b&gt;İzolasyon noktaları&lt;/b&gt; (DESIGN.md, Tenant izolasyonu → Nerede uygulanır)&lt;br&gt;1. HTTP pipeline'ı: authenticate, requirePlatformAdmin, requireTenant, requireFirmAdmin&lt;br&gt;2. Firmaya bağlı repository'ler (createTenantScope)&lt;br&gt;3. Tenant route'ları yalnız req.tenant görür, db almaz&lt;br&gt;4. Lint sınırı (no-restricted-imports)&lt;br&gt;5. Hata yanıtları: başka firmanın kaynağı da aynı 404&lt;br&gt;6. Gerçek zamanlı kanal: display handshake'i ve firma odaları" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="620" y="1050" width="620" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-dev" value="&lt;b&gt;Geliştirmede&lt;/b&gt;&lt;br&gt;Arayüz Vite'tan (5173) gelir; Vite /api, /docs, /openapi.json, /health ve /socket.io yollarını API'ye (4000) proxy'ler.&lt;br&gt;&lt;br&gt;&lt;b&gt;Üretimde&lt;/b&gt; (npm start)&lt;br&gt;Express arayüzü dist/web'den aynı origin'de sunar." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="1050" width="440" height="200" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

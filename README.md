@@ -9,7 +9,8 @@ API sözleşmesine uyar.
 
 Belgelerin ve kodun nerede olduğu ve önerilen okuma sırası için: [docs/README.md](docs/README.md).
 Tasarım kararları, tenant izolasyonunun nerede uygulandığı ve sözleşme notları için:
-[DESIGN.md](DESIGN.md).
+[DESIGN.md](DESIGN.md). Katmanlar, izolasyonun uygulandığı noktalar ve gerçek zamanlı kanal için:
+[mimari diyagram](docs/architecture.png) ([draw.io kaynağı](docs/architecture.drawio)).
 
 ## Gereksinimler
 

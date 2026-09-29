@@ -9,14 +9,17 @@ Kurulum ve çalıştırma için [ana README](../README.md) dosyasına bakın.
    deneyin.
 2. API sözleşmesi:
    ne istendiği ve dış yüzeyin değişmez kuralları.
-3. [DESIGN.md](../DESIGN.md): veri modeli, tenant izolasyonunun nerede uygulandığı, kimlik
+3. [Mimari diyagram](architecture.png) ([draw.io kaynağı](architecture.drawio)): katmanlar,
+   tenant izolasyonunun uygulandığı noktalar (DESIGN.md'deki numaralarla), gerçek zamanlı kanal
+   ve kontrol arayüzünün API'yi nasıl kullandığı, tek resimde.
+4. [DESIGN.md](../DESIGN.md): veri modeli, tenant izolasyonunun nerede uygulandığı, kimlik
    doğrulama, trade-off'lar, sözleşme notları, database-per-tenant cevabı ve önceliklendirme.
-4. [Karar günlüğü](decisions.md) (İngilizce): her özellik kapanırken yazılan kısa "neden" notları.
-5. [Build plan](../blueprint/build-plan.md) ve
+5. [Karar günlüğü](decisions.md) (İngilizce): her özellik kapanırken yazılan kısa "neden" notları.
+6. [Build plan](../blueprint/build-plan.md) ve
    [tamamlanan özelliklerin spec'leri](../blueprint/history/features/) (İngilizce): işin hangi
    sırayla, hangi adımlarla ve hangi testlerle yapıldığı. Commit geçmişi aynı sırayı izler; her
    özellik `main` dalına bir merge commit'iyle girer (`git log --first-parent main`).
-6. Kod, bir isteğin yolunu izleyerek:
+7. Kod, bir isteğin yolunu izleyerek:
    - [src/server/app.ts](../src/server/app.ts): HTTP pipeline'ı; kimlik doğrulama, yetki ve tenant
      kapılarının sırası
    - [src/server/http/authenticate.ts](../src/server/http/authenticate.ts): token doğrulama ve her
@@ -26,18 +29,19 @@ Kurulum ve çalıştırma için [ana README](../README.md) dosyasına bakın.
      yani tenant izolasyonunun uygulandığı yer
    - [src/server/realtime/](../src/server/realtime/): display handshake'i, firma odaları ve
      `mode-change` yayını
-7. [tests/isolation/](../tests/isolation/): izolasyonun kanıtı (firmalar arası erişim matrisi,
+8. [tests/isolation/](../tests/isolation/): izolasyonun kanıtı (firmalar arası erişim matrisi,
    token'ların geçersizleşmesi, socket sızıntısı).
 
 ## Nerede ne var
 
 ### Belgeler
 
-| Yol                               | İçerik                                                                                                                                 |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| [README.md](../README.md)         | Kurulum, tek komutla çalıştırma, seed hesapları, curl örnekleri, test komutu                                                           |
-| [DESIGN.md](../DESIGN.md)         | Tasarım: veri modeli, izolasyon, kimlik doğrulama, trade-off'lar, sözleşme notları, database-per-tenant, önceliklendirme, AI kullanımı |
-| [docs/decisions.md](decisions.md) | Karar günlüğü: özellik bazında tarihli "neden" notları (İngilizce)                                                                     |
+| Yol                                                                                        | İçerik                                                                                                                                           |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [README.md](../README.md)                                                                  | Kurulum, tek komutla çalıştırma, seed hesapları, curl örnekleri, test komutu                                                                     |
+| [DESIGN.md](../DESIGN.md)                                                                  | Tasarım: veri modeli, izolasyon, kimlik doğrulama, trade-off'lar, sözleşme notları, database-per-tenant, önceliklendirme, AI kullanımı           |
+| [docs/architecture.png](architecture.png), [docs/architecture.drawio](architecture.drawio) | Mimari diyagram ve draw.io kaynağı: katmanlar, izolasyon noktaları (DESIGN.md'deki numaralarla), gerçek zamanlı kanal, arayüzün API'yi kullanışı |
+| [docs/decisions.md](decisions.md)                                                          | Karar günlüğü: özellik bazında tarihli "neden" notları (İngilizce)                                                                               |
 
 ### Planlar ve spec'ler
 
