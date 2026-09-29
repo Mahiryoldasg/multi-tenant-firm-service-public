@@ -469,6 +469,169 @@ Zorlaştıranlar:
 Gerçek zamanlı kanal etkilenmez: odalar zaten doğrulanmış token'daki `firmId` ile ayrılıyor;
 handshake'teki aktif firma kontrolü kontrol düzleminden yapılır.
 
+## Cihaz eşleştirme (tasarım)
+
+Ek bir konu: display'ler login yapamayan kiosk cihazlarıdır; kısa ömürlü bir
+eşleştirme kodu (pairing code) ile cihazı firmaya bağlayıp kalıcı bir display token'ı üreten bir
+akış. Bu bölüm önerilen tasarımdır; `main`'de bu akışın kodu yoktur. Bugün bir display token'ı
+tek bir yolla alınır: firm_admin onu `POST /api/display-tokens` ile üretir ve cihaza elle girer.
+
+Akışın biçimi: cihaz eşleştirmeyi başlatır ve bir kod gösterir, firm_admin bu kodu kontrol
+arayüzünde onaylar, cihaz token'ını sonra alır. Bu, OAuth 2.0 Device Authorization Grant'in
+([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628)) kalıbıdır. Neden: kiosk login yapamaz ve
+çoğu zaman klavyesi yoktur. Bu akışta cihaz yalnız bir kod gösterir, ona hiçbir şey yazılmaz;
+kodu, oturum açmış ve klavyesi olan admin girer.
+
+```mermaid
+sequenceDiagram
+    participant D as Display cihazı
+    participant S as Sunucu (HTTP API)
+    participant A as Firm admin (kontrol arayüzü)
+    participant R as Display kanalı (Socket.IO)
+
+    Note over D,S: 1. Başlatma (kimlik doğrulamasız)
+    D->>S: POST /api/display-pairings
+    S-->>D: 201 userCode, deviceCode, expiresAt, interval
+    Note over D: userCode ekranda, ör. BCDF-GHJK
+
+    Note over D,S: 2. Bekleme
+    loop interval saniyede bir, expiresAt'e kadar
+        D->>S: POST /api/display-pairings/token (deviceCode)
+        S-->>D: 200 status: pending
+    end
+
+    Note over S,A: 3. Onay (firm_admin oturumu)
+    A->>S: POST /api/display-pairings/approve (userCode, label), Bearer
+    Note over S,A: tek transaction: kodu admin'in firmasına bağla, display_tokens satırını yaz
+    S-->>A: 201 id, label, createdAt
+
+    Note over D,S: 4. Teslim (yalnız bir kez)
+    D->>S: POST /api/display-pairings/token (deviceCode)
+    S-->>D: 200 status: approved, token
+    Note over D: token kalıcı depoya yazılır
+
+    Note over D,R: 5. Kullanım
+    D->>R: io(url, auth: token)
+    R-->>D: bağlantı, firm:firmId odası
+    D->>R: mode:get
+    R-->>D: ack: modeId
+    R-->>D: mode-change (her POST /api/mode'da)
+```
+
+### Akış
+
+1. **Başlatma.** Saklı bir token'ı olmayan cihaz `POST /api/display-pairings`'i gövdesiz çağırır.
+   Uç login gibi herkese açıktır, `authenticate`'ten önce kaydedilir. Yanıt
+   `201 { userCode, deviceCode, expiresAt, interval }`:
+   - `userCode`: `BCDFGHJKLMNPQRSTVWXZ` alfabesinden 8 karakter (RFC 8628 §6.1: sesli harf ve
+     birbirine benzeyen karakter yok), ekranda `XXXX-XXXX` biçiminde; yaklaşık 2,56 × 10^10
+     olasılık. Admin'in girdiği değer büyük harfe çevrilir, tire ve boşluklar atılır. Süresi
+     dolmamış bekleyen kodlar arasında benzersizdir; çakışırsa yeniden üretilir.
+   - `deviceCode`: `crypto.randomBytes` ile 32 rastgele byte, base64url. Cihaz onu saklar;
+     herkese açık tarafın tek sırrıdır.
+   - `expiresAt`: başlatmadan 10 dakika sonra. `interval`: iki yoklama arasındaki 5 saniye.
+2. **Bekleme.** Cihaz `userCode`'u ekranda gösterir ve `interval` saniyede bir
+   `POST /api/display-pairings/token`'ı `{ deviceCode }` gövdesiyle çağırır; onay gelene kadar
+   yanıt `200 { status: 'pending' }`. Kodlar path'te değil gövdede gider: pino-http istek logu
+   URL'yi yazar, gövdeyi yazmaz.
+3. **Onay.** Firm admin, kontrol arayüzünde kodu ve isteğe bağlı bir `label` girer:
+   `POST /api/display-pairings/approve`, gövde `{ userCode, label? }`; `authenticate`,
+   `requireTenant` ve `requireFirmAdmin` arkasında. Tek bir transaction'da bekleyen ve süresi
+   dolmamış satır koşullu bir `UPDATE` ile çağıranın firmasına bağlanır (bir kodu yalnız bir onay
+   alabilir), `display_tokens` satırı mevcut `req.tenant.displayTokens.create` ile yazılır
+   (üreten kullanıcı onaylayan admin, `label` gövdeden) ve eşleştirme bu satıra bağlanır. Yanıt
+   `201 { id, label, createdAt }`; `id`, cihazın alacağı token'ın `jti`'sidir.
+   - Hatalar: `401` (token yok, geçersiz ya da display token'ı), `403` (`member`; platform admin
+     `requireTenant`'ta), `400` (`userCode` boş olmayan bir metin değil ya da `label` metin
+     değil), `404` (bilinmeyen, süresi dolmuş ya da zaten onaylanmış kod; üçü de aynı mesajla).
+   - Sıra `401 → 403 → 400 → 404`: aranacak anahtar gövdede olduğu için önce gövde doğrulanır.
+     Path'te firmaya ait bir kaynak yoktur, bekleyen bir eşleştirme de henüz hiçbir firmanın
+     değildir; bu `404` firmaya ait hiçbir şeyi sızdırmaz.
+   - Firma gövdeden gelmez: `createTenantScope`'a eklenecek, firmaya bağlı bir
+     `displayPairings` repository'si, diğer tenancy repository'leri gibi scope'un firmasını yazar.
+4. **Teslim.** Onaydan sonraki ilk yoklama, tek bir transaction'da satırın onaylanmış, süresi
+   dolmamış, henüz teslim edilmemiş ve firmasının hâlâ aktif olduğunu görür, satırı teslim edildi
+   diye işaretler ve token'ı mevcut `signDisplayToken` ile, bağlı `display_tokens` satırının id'si
+   ve firmasıyla imzalar: `200 { status: 'approved', token }`, yalnız bir kez. Bilinmeyen, süresi
+   dolmuş, zaten teslim edilmiş ya da onaydan sonra firması silinmiş bir `deviceCode` `404` alır
+   ve token imzalanmaz.
+   - Token, `POST /api/display-tokens`'ın verdiğiyle aynı claim'leri taşır (`kind: 'display'`,
+     `firmId`, `jti`; sözleşme §2 gereği `exp` yok). Bu yüzden handshake, firma odası,
+     `mode-change`, `mode:get`, firma silinince geçersizleşme ve bağlı display'lerin koparılması
+     (N3) olduğu gibi geçerlidir. Token metni saklanmaz ve loglanmaz.
+5. **Kullanım.** Cihaz token'ı kalıcı olarak saklar (tarayıcı tabanlı bir display'de
+   `localStorage`), `io(url, { auth: { token } })` ile bağlanır, güncel modu `mode:get` ile sorar
+   (N4) ve `mode-change`'i dinler. Sonraki açılışlarda eşleştirme yapılmaz. Token'ı yalnız bir
+   handshake reddi (ağ hatası değil) siler ve cihazı eşleştirme ekranına döndürür.
+
+### Önerilen tablo
+
+`display_pairings` (yalnız tasarım, migration yok):
+
+- `id`: UUID.
+- `user_code`: normalize edilmiş kod, düz metin. Kısa ömürlüdür ve yalnız oturum açmış bir
+  firm_admin'den kabul edilir; tek başına bir token'a çevrilemez.
+- `device_code_hash`: `deviceCode`'un SHA-256'sı, benzersiz. 256 bitlik rastgele bir değer için
+  hızlı bir hash yeter; scrypt, tahmin edilebilir şifreler içindir.
+- `firm_id` ve `display_token_id`: onaya kadar `NULL`.
+- `created_at`, `expires_at`, `approved_at`, `delivered_at`.
+
+Durum ayrı bir kolonda tutulmaz, zaman damgalarından çıkar. Süresi dolan ve teslim edilen satırlar
+bir temizlikle silinir (örneğin yeni bir eşleştirme başlarken); kalıcı kayıt `display_tokens`
+satırıdır.
+
+### Güvenlik ve izolasyon
+
+- Herkese açık tarafın tek sırrı 256 bitlik `deviceCode`'dur. Kısa `userCode` yalnız oturum açmış
+  bir firm_admin'den kabul edilir.
+- Tahmin edilen bir `userCode`, en fazla bekleyen bir ekranı tahmin edenin kendi firmasına
+  bağlayabilir. Ekran o zaman tahmin edenin modlarını gösterir, öbür firmanın hiçbir verisi sızmaz
+  (bekleyen bir eşleştirme veri taşımaz) ve gerçek admin'in onayı `404` alır, yani durum fark
+  edilir. Kod uzayı, 10 dakikalık ömür ve tek kullanım bunu çok düşük bir olasılığa indirir. Gerçek
+  bir uygulama ayrıca iki herkese açık uca IP başına, başarısız onaylara kullanıcı başına rate
+  limiting ekler; rate limiting bu projenin kapsamı dışındadır.
+- İzolasyonun uygulandığı yerler, "Nerede uygulanır"daki numaralarla: onay 1. maddedeki
+  kapılardan geçer; firma `req.tenant`'tan, bir tenancy repository'si üzerinden gelir (2. ve 3.
+  madde); tenant route'u yine `db` almaz, lint sınırı (4. madde) değişmez; teslim edilen token
+  sıradan bir display token'ıdır, 6. madde olduğu gibi geçerlidir.
+- Yarışlar: aynı koda iki onay gelirse biri kazanır, öbürü `404` alır; onaydan sonraki iki
+  yoklamadan yalnız biri token'ı alır.
+
+### Sınırlar
+
+- Başka bir firmaya taşınan cihaz sıfırlanıp yeniden eşleştirilir, ama eski token'ı iptal (revoke)
+  gelene kadar geçerli kalır (N8, `jti`). Onaydaki `label` bu yüzden önemlidir: ileride iptal
+  edilecek token'ı adıyla bulmayı sağlar.
+- Teslim yanıtı yolda kaybolursa cihaz baştan başlar; teslim edilmemiş `display_tokens` satırı bir
+  kayıt olarak kalır.
+
+### Neden başka bir akış değil
+
+- **Admin'in ürettiği ve cihaza yazılan kod:** kiosk'ta giriş gerektirir; kısa kod da herkese açık
+  bir uçta taşıyıcı (bearer) bir kimlik bilgisine dönüşür ve tahmin edilmesi, başka bir firmanın
+  mod akışını dinleyen canlı bir token verir.
+- **Token'ı taşıyan bir QR kod:** kamera gerektirir ve uzun ömürlü token bir fotoğrafta görünür.
+- **Yoklama yerine socket ile gönderim:** tek seferlik bir kurulum için üçüncü bir handshake türü;
+  5 saniyelik yoklama bu işe yeter.
+
+### Sözleşmeyle ilişkisi
+
+Yalnız ekleme. Uygulanırsa üç yol Swagger'da "(uzantı)" olarak işaretlenir. Sözleşmedeki display
+claim'leri ve display kanalı değişmez; `POST /api/display-tokens` elle token üretimi ve kabul
+testleri için kalır.
+
+### Uygulanırsa
+
+- `display_pairings` için bir migration.
+- Onay için `createTenantScope`'ta firmaya bağlı bir `displayPairings` repository'si; başlatma ve
+  teslim için login gibi herkese açık bir modül.
+- Firma çalışma alanında yalnız firm_admin'e görünen bir "Ekran eşleştir" formu (kod ve `label`);
+  display simülatöründe bir eşleştirme modu.
+- OpenAPI'de üç uzantı yolu.
+- Testler: platform admin `403`, member `403`, zaten onaylanmış kod `404`, süre dolumu, tek onay
+  ve tek teslim, eşzamanlı onay, onay ile teslim arasında silinen firma ve teslim edilen token'ın
+  handshake'ten geçip onaylayan firmanın odasına girmesi.
+
 ## Önceliklendirme
 
 Öncelikler: gerekçeli önceliklendirme, sözleşmeye
