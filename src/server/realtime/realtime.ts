@@ -3,13 +3,13 @@ import type { Logger } from 'pino';
 import { type Namespace, Server } from 'socket.io';
 import type { AppConfig } from '../config.ts';
 import { INTERNAL_ERROR_MESSAGE } from '../http/error-handler.ts';
+import { createTenantScope } from '../tenancy/scope.ts';
 import { authenticateControl } from './control-auth.ts';
 import { authenticateDisplay } from './display-auth.ts';
 
 /**
  * What the server sends. Displays on the main namespace get `mode-change` (contract §4); open
- * control screens on `/control` get `mode:changed` (not in the contract). The server listens to no
- * event from either.
+ * control screens on `/control` get `mode:changed` (not in the contract).
  */
 export interface ServerToClientEvents {
   /** To a firm's displays, on the main namespace. */
@@ -18,19 +18,31 @@ export interface ServerToClientEvents {
   'mode:changed': () => void;
 }
 
+/**
+ * What clients may send: only displays on the main namespace are answered, and only `mode:get` (not
+ * in the contract); `/control` listens to nothing. The arguments are checked at runtime.
+ */
+interface ClientToServerEvents {
+  'mode:get': (...args: unknown[]) => void;
+}
+
+/** The `mode:get` ack: the body of `GET /api/mode`, or the envelope of an unexpected failure. */
+type ModeAnswer =
+  { modeId: string | null } | { error: { code: 'INTERNAL_ERROR'; message: string } };
+
 interface SocketData {
   firmId: string;
 }
 
 export type RealtimeServer = Server<
-  Record<string, never>,
+  ClientToServerEvents,
   ServerToClientEvents,
   Record<string, never>,
   SocketData
 >;
 
 type RealtimeNamespace = Namespace<
-  Record<string, never>,
+  ClientToServerEvents,
   ServerToClientEvents,
   Record<string, never>,
   SocketData
@@ -56,7 +68,8 @@ export interface RealtimeDeps {
 
 /**
  * The display channel on the main namespace, and the control UI's live mode channel on `/control`.
- * In both, a socket joins its own firm's room, taken from the verified handshake.
+ * In both, a socket joins its own firm's room, taken from the verified handshake. Displays can also
+ * ask for their firm's current mode with `mode:get`.
  */
 export function createRealtime({ db, config, logger }: RealtimeDeps): Realtime {
   // The UI bundles socket.io-client, so the server does not serve its own copy.
@@ -76,7 +89,7 @@ export function createRealtime({ db, config, logger }: RealtimeDeps): Realtime {
     failureLog: 'Control handshake failed',
   });
 
-  return {
+  const realtime: Realtime = {
     io,
     broadcastModeChange(firmId, modeId) {
       displays.to(firmRoom(firmId)).emit('mode-change', { modeId });
@@ -88,6 +101,46 @@ export function createRealtime({ db, config, logger }: RealtimeDeps): Realtime {
       controls.in(firmRoom(firmId)).disconnectSockets(true);
     },
   };
+
+  answerModeRequests(displays, {
+    readMode: (firmId) => createTenantScope(db, firmId, realtime).mode.get(),
+    logger,
+  });
+
+  return realtime;
+}
+
+interface ModeRequests {
+  readMode: (firmId: string) => string | null;
+  logger: Logger;
+}
+
+/**
+ * Answers a display's `mode:get` (not in the contract) with its own firm's mode. The firm is the one
+ * the handshake fixed: nothing in the request can name another one.
+ */
+function answerModeRequests(
+  namespace: RealtimeNamespace,
+  { readMode, logger }: ModeRequests,
+): void {
+  namespace.on('connection', (socket) => {
+    socket.on('mode:get', (...args) => {
+      // Socket.IO passes the client's ack last; a request without one has nowhere to be answered.
+      const ack = args.at(-1);
+      if (typeof ack !== 'function') return;
+
+      // Read and answer in one synchronous call, as POST /api/mode stores and broadcasts: a display
+      // then gets this answer and any `mode-change` in the order the mode changed.
+      let answer: ModeAnswer;
+      try {
+        answer = { modeId: readMode(socket.data.firmId) };
+      } catch (err) {
+        logger.error({ err }, 'Mode request failed');
+        answer = { error: { code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE } };
+      }
+      ack(answer);
+    });
+  });
 }
 
 type HandshakeResult = { ok: true; firmId: string } | { ok: false; message: string };

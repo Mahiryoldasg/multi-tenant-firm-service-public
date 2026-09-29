@@ -154,6 +154,11 @@ export function recordModeChanges(client: Socket): unknown[][] {
   return received;
 }
 
+/** Sends `mode:get` (not in the contract), with `args` before the ack, and resolves with the answer. */
+export function requestMode(client: Socket, ...args: unknown[]): Promise<unknown> {
+  return client.timeout(WAIT_MS).emitWithAck('mode:get', ...args);
+}
+
 /** Resolves with the argument list of the client's next `mode:changed`. */
 export function nextModeChanged(client: Socket): Promise<unknown[]> {
   return within('mode:changed', (resolve) => {
