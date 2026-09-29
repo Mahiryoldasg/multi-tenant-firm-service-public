@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { errorMessage } from '../api.ts';
 import { useSession } from '../auth/session.tsx';
+import { type LiveModeStatus, useLiveMode } from './use-live-mode.ts';
 
 /** The `GET` and `POST /api/mode` answer; `null` until the firm's first mode is set. */
 interface ModeResponse {
@@ -13,13 +14,28 @@ interface ModePanelProps {
   canManage: boolean;
 }
 
-/** The firm's active mode, with a form to set it for a firm admin. */
+/** The line under the mode; a server reason is shown as text, never as HTML. */
+function liveStatusText(status: LiveModeStatus): string {
+  switch (status.state) {
+    case 'connecting':
+      return 'Canlı güncelleme bağlanıyor...';
+    case 'live':
+      return 'Canlı güncelleme açık: mod başka bir ekrandan değişince burada da güncellenir.';
+    case 'interrupted':
+      return 'Canlı güncelleme bağlantısı koptu; yeniden deneniyor.';
+    case 'stopped':
+      return `Canlı güncelleme kapalı: ${status.reason}`;
+  }
+}
+
+/** The firm's active mode, kept live over the control channel, with a form for a firm admin. */
 export function ModePanel({ canManage }: ModePanelProps) {
   const { request } = useSession();
   const mode = useQuery({
     queryKey: ['mode'],
     queryFn: async () => (await request<ModeResponse>('/api/mode')).modeId,
   });
+  const liveStatus = useLiveMode();
 
   return (
     <section>
@@ -36,12 +52,16 @@ export function ModePanel({ canManage }: ModePanelProps) {
         </>
       )}
       {mode.isPending && <p role="status">Mod yükleniyor...</p>}
-      {mode.data === null && <p>Henüz bir mod seçilmedi.</p>}
-      {typeof mode.data === 'string' && (
-        <p>
-          Aktif mod: <code>{mode.data}</code>
-        </p>
-      )}
+      {/* Always rendered and polite, so a mode changed from another screen is announced. */}
+      <div aria-live="polite">
+        {mode.data === null && <p>Henüz bir mod seçilmedi.</p>}
+        {typeof mode.data === 'string' && (
+          <p>
+            Aktif mod: <code>{mode.data}</code>
+          </p>
+        )}
+      </div>
+      <p className="live-status">{liveStatusText(liveStatus)}</p>
       {canManage && <SetModeForm />}
     </section>
   );

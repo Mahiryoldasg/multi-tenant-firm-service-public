@@ -86,6 +86,8 @@ const DESCRIPTION = `Çok kiracılı (multi-tenant) firma ve çalışan yönetim
 
 **Gerçek zamanlı kanal (Socket.IO).** Display istemcisi \`io(url, { auth: { token: <display token> } })\` ile bağlanır. Eksik veya geçersiz token, kullanıcı token'ı ve silinmiş firmanın token'ı \`connect_error\` ile reddedilir. \`POST /api/mode\` her başarılı çağrıda, aynı değer tekrar gönderilse bile, yalnız o firmanın bağlı display'lerine \`mode-change\` event'ini \`{ modeId }\` ile gönderir; başka firmanın display'i bu event'i hiçbir koşulda almaz. Firma silinince bağlı display'lerinin bağlantısı sunucu tarafından kesilir. Bağlanma anında mevcut mod gönderilmez. Socket kanalı OpenAPI ile tanımlanamadığı için yalnız burada anlatılır.
 
+**Kontrol kanalı (uzantı, sözleşme dışı).** Kontrol arayüzü, açık firma ekranlarında modu canlı göstermek için ayrı bir namespace'e bağlanır: \`io(url + '/control', { auth: { token: <kullanıcı token'ı> } })\`. Yalnız firma kullanıcıları (firm_admin ve member) bağlanabilir; kullanıcı ve firması handshake'te veritabanından okunur. Platform admin, display token ve geçersiz, süresi dolmuş ya da silinmiş kullanıcının token'ı \`connect_error\` ile reddedilir. Her başarılı \`POST /api/mode\`, aynı değer tekrar gönderilse bile, yalnız o firmanın kontrol ekranlarına veri taşımayan bir \`mode:changed\` event'i gönderir; istemci modu \`GET /api/mode\` ile okur. Display'ler bu event'i, kontrol ekranları da \`mode-change\` event'ini almaz. Bağlanma anında bir şey gönderilmez; firma silinince bu bağlantılar da kesilir.
+
 **Uzantılar.** Sözleşmede olmayan işlemlerin özetinde "(uzantı)" yazar: \`GET /api/auth/me\`, \`GET /api/employees/{id}\` ve \`GET /health\`.`;
 
 function registerAuthPaths(registry: OpenAPIRegistry): void {

@@ -125,7 +125,8 @@ bağlantısı almamasıdır.
 aynı mesajı alır ("Çalışan bulunamadı."); iç ayrıntılar yalnız loglara gider. Platform admin firma
 bağlamındaki yollarda `403` alır: firması olmadığı için orada bakabileceği bir kaynak yoktur.
 
-**6. Gerçek zamanlı kanal** ([src/server/realtime/](src/server/realtime/)):
+**6. Gerçek zamanlı kanal** ([src/server/realtime/](src/server/realtime/)). Display kanalı (ana
+namespace, sözleşme §4):
 
 - Handshake yalnız display token'ı kabul eder: HS256 imzalı, `kind: 'display'`, string bir
   `firmId`, `sub` ya da `role` yok ve firma hâlâ aktif. Aksi halde bağlantı `connect_error` ile
@@ -140,6 +141,22 @@ bağlamındaki yollarda `403` alır: firması olmadığı için orada bakabilece
   bağlanmaya çalışan display, aktif firma kontrolünde reddedilir.
 - Handshake kontrolü senkrondur: Socket.IO socket'i bu zincirden bir `process.nextTick` sonra
   bağlar, yani aktif firma kontrolü ile odaya katılma arasına bir firma silme isteği giremez.
+
+Kontrol arayüzünün canlı mod kanalı (`/control` namespace'i, sözleşme dışı) aynı kurallarla ayrı
+tutulur:
+
+- Handshake yalnız aktif bir firma kullanıcısının (firm_admin ya da member) token'ını kabul eder.
+  Kullanıcı ve firması HTTP'deki gibi veritabanından okunur; geçersiz oturum ve yetki mesajları
+  HTTP'dekilerle aynıdır. Display token'ı ve izleyeceği bir firma modu olmayan platform admin
+  reddedilir.
+- Socket, `/control` içindeki `firm:<firmId>` odasına girer; firma id'si token claim'inden değil,
+  kullanıcının veritabanı satırından gelir. Odalar namespace'e özeldir: bu oda hiçbir display'i,
+  display odası da hiçbir kontrol ekranını içermez.
+- `broadcastModeChange` aynı çağrıda bu odaya veri taşımayan bir `mode:changed` gönderir. Mod
+  değeri socket'ten gitmez: arayüz sinyali alınca modu `GET /api/mode` ile okur; firma verisi
+  yalnız, kullanıcıyı her istekte yeniden denetleyen HTTP yolundan gelir.
+- Firma silinince bu odadaki socket'ler de koparılır. Handshake, display'inkiyle aynı yardımcıdan
+  (`admitToFirmRoom`) geçer; o da senkrondur.
 
 ### Nasıl kanıtlanır
 
@@ -157,6 +174,10 @@ bağlamındaki yollarda `403` alır: firması olmadığı için orada bakabilece
   firmasının bütün display'lerine sırasıyla ulaşır, diğer firmanınkilere hiç ulaşmaz. Bir olayın
   gelmediği, ardından gelmesi gereken bir olay gönderilerek kanıtlanır: Socket.IO bir bağlantıda
   sırayı korur, sızan bir olay ondan önce gelirdi. Testler sabit bir bekleme süresine dayanmaz.
+  Aynı dosyada iki firmanın admin ve üye kontrol ekranları da bağlıdır: her ekran kendi firmasının
+  her olayında tam bir `mode:changed` alır, diğer firmanınkini hiç almaz. Sinyal veri taşımadığı
+  için her kontrol ekranı bir display'le aynı bağlantıyı paylaşır ve sayım, o display'e gelen
+  bariyer olayında yapılır.
 
 ## Kimlik doğrulama ve yetki
 
@@ -173,7 +194,9 @@ bağlamındaki yollarda `403` alır: firması olmadığı için orada bakabilece
   token'ın `display_tokens` satırının id'sidir. Yalnız socket handshake'inde geçer, herhangi bir
   HTTP yolunda `401` alır. Onu üreten kullanıcının silinmesi ya da rolünün değişmesi token'ı
   etkilemez; firması silinince geçersiz olur. Token metni saklanmaz ve loglanmaz.
-- Kullanıcı token'ıyla socket'e bağlanmaya çalışan `connect_error` alır.
+- Kullanıcı token'ıyla display kanalına bağlanmaya çalışan `connect_error` alır. Kullanıcı
+  token'ı socket'te yalnız kontrol arayüzünün `/control` kanalında geçer; orada da display token'ı
+  reddedilir.
 
 ### Her istekte veritabanı
 
@@ -218,6 +241,11 @@ Arayüz, dışarıya açık API'yi HTTP üzerinden, `Authorization: Bearer` ile 
 katmanına ya da veritabanına arka bir yolu yoktur. Token `sessionStorage`'da tutulur: sayfa
 yenilenince kalır, sekme kapanınca biter. Bir `401` oturumu kapatır ve giriş ekranına döner.
 
+Display simülatörü dışında arayüzün açtığı tek socket, firma çalışma alanındaki `/control`
+bağlantısıdır. Bu bağlantı veri taşımaz, yalnız "mod değişti" der; arayüz modu yine
+`GET /api/mode` ile okur. Her bağlanışta da okur, böylece bağlantı kopukken kaçan bir değişiklik
+de gelir. Bu okuma `401` alırsa oturum her zamanki gibi kapanır, bağlantı da onunla kapanır.
+
 ## Trade-off'lar
 
 Her madde: seçim, neden, bedeli.
@@ -248,6 +276,13 @@ Her madde: seçim, neden, bedeli.
   bağlanınca kendiliğinden gönderilen bir olay, sözleşme testlerindeki "tam bir olay" ya da "hiç olay
   yok" beklentilerini bozabilirdi. Bedeli: yeniden bağlanan bir display, bir sonraki
   `POST /api/mode`'a kadar güncel modu öğrenemez (N4).
+- **Kontrol kanalında veri yok, yalnız sinyal.** `/control` her değişiklikte yalnız `mode:changed`
+  gönderir; mod değeri, kullanıcıyı her istekte yeniden denetleyen HTTP'den okunur. Bu yüzden
+  açık bir bağlantı, çalışan silinince, rolü değişince ya da token'ının süresi dolunca koparılmaz:
+  arayüzün sinyalden sonra yaptığı okuma `401` alır, oturumu ve bağlantıyı kapatır; yeniden
+  bağlanma handshake'te reddedilir. Bedeli: her değişiklikte açık ekran başına bir `GET /api/mode`
+  isteği ve silinmiş bir kullanıcının elle yazılmış bir istemcisinin, bağlantıyı kapatana kadar
+  modun değiştiğini (değerini değil) öğrenebilmesi.
 - **Display token'ında `exp` ve revoke yok.** Sözleşme böyle tanımlıyor ve kiosk'un yeniden giriş
   yapma yolu yok; `jti` ileride revoke için saklanır. Bedeli: sızan bir display token'ı firma
   silinene kadar geçerlidir; yalnız o firmanın mod değişikliklerini dinleyebilir, HTTP'de `401`
@@ -347,13 +382,14 @@ id'sidir. Sözleşmedeki claim'ler değişmedi; revoke uygulanmadı.
 
 ### Sözleşmeye eklenenler
 
-Üç endpoint Swagger'da "(uzantı)" olarak işaretli; diğer ikisi Swagger açıklamalarında yazılı:
+Üç endpoint Swagger'da "(uzantı)" olarak işaretli; diğerleri Swagger açıklamalarında yazılı:
 
 - `GET /api/employees/:id` (N5)
 - `GET /api/auth/me` (N6)
 - `GET /health`: kimlik doğrulaması gerektirmeyen canlılık kontrolü
 - `500 INTERNAL_ERROR`: beklenmeyen sunucu hataları için
 - Display token'ında `jti` claim'i (N8)
+- Kontrol arayüzünün `/control` socket namespace'i ve veri taşımayan `mode:changed` event'i
 
 ## Database-per-tenant
 
@@ -448,6 +484,7 @@ Gerçekleşen (`git log --first-parent main`):
 - Bu belge yazılırken (29.09 gecesi) P1'den yalnız bu belge ve mimari diyagram kalmıştı; P2
   maddelerine başlanmamıştı.
 - Mimari diyagram 29.09'da, bu belgeden sonra eklendi; P1 böylece tamamlandı.
+- P2'nin 17. maddesi (kontrol arayüzünde canlı mod) 29.09'da yapıldı.
 
 Her özellik küçük, incelenmiş adımlarla ve adım başına bir commit'le yapıldı. İncelemelerde bulunan
 hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
@@ -469,8 +506,8 @@ hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
   klondan doğrulandı; WSL ya da Linux'ta denenmedi.
 - **Tarayıcıda uçtan uca testler:** arayüzün DOM'suz modülleri test ediliyor, ama bir tarayıcı test
   altyapısı yok; arayüz elle doğrulandı.
-- **P2 bonusları** (bu belge yazılırken yapılmamıştı): kontrol arayüzünde socket ile canlı mod,
-  display'in güncel modu isteyebildiği ack'li bir `mode:get` (N4) ve cihaz eşleştirme akışı.
+- **Kalan P2 bonusları:** display'in güncel modu isteyebildiği ack'li bir `mode:get` (N4) ve cihaz
+  eşleştirme akışı.
 
 ## AI kullanımı
 

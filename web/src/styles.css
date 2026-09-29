@@ -83,6 +83,12 @@ button {
   color: #166534;
 }
 
+/* The mode panel's live channel line: secondary to the mode itself. */
+.live-status {
+  color: #4b5563;
+  font-size: 0.875rem;
+}
+
 .notice {
   padding: 8px 12px;
   background: #eff6ff;
