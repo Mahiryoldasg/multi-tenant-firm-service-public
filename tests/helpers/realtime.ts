@@ -3,7 +3,7 @@ import type { Express } from 'express';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { pino, type Logger } from 'pino';
-import { io, type Socket } from 'socket.io-client';
+import { io, Manager, type Socket } from 'socket.io-client';
 import request from 'supertest';
 import type { Realtime } from '../../src/server/realtime/realtime.ts';
 import { createTestApp } from './app.ts';
@@ -71,6 +71,23 @@ export function connectControl(url: string, auth?: Record<string, unknown>): Soc
   const client = io(`${url}/control`, { auth, forceNew: true, reconnection: false });
   clients.add(client);
   return client;
+}
+
+/**
+ * A display and a control client on one shared connection (one manager), so Socket.IO's order per
+ * connection spans both namespaces. Neither reconnects; both close at teardown.
+ */
+export function connectDisplayAndControl(
+  url: string,
+  displayAuth: Record<string, unknown>,
+  controlAuth: Record<string, unknown>,
+): { display: Socket; control: Socket } {
+  const manager = new Manager(url, { reconnection: false });
+  const display = manager.socket('/', { auth: displayAuth });
+  const control = manager.socket('/control', { auth: controlAuth });
+  clients.add(display);
+  clients.add(control);
+  return { display, control };
 }
 
 /** Resolves once the client connects; rejects with its `connect_error` instead. */

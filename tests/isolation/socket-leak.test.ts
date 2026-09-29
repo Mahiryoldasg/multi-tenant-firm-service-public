@@ -1,12 +1,17 @@
 import request from 'supertest';
+import type { Socket } from 'socket.io-client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { insertUser } from '../../src/server/modules/platform/users.ts';
 import { userTokenFor } from '../helpers/auth.ts';
 import { TEST_SEED } from '../helpers/db.ts';
 import {
+  connectDisplayAndControl,
   connected,
   issueDisplayToken,
   recordingDisplay,
   type RecordingDisplay,
+  recordModeChangedSignals,
+  recordModeChanges,
   startTestServer,
   stopTestServer,
   type TestServer,
@@ -30,6 +35,15 @@ const SEQUENCES: Record<FirmKey, string[]> = {
 };
 const SENTINELS: Record<FirmKey, string> = { first: 'first-done', second: 'second-done' };
 const FIRM_KEYS: FirmKey[] = ['first', 'second'];
+const FIRM_NAMES: Record<FirmKey, string> = {
+  first: TEST_SEED.firms[0].name,
+  second: TEST_SEED.firms[1].name,
+};
+const MEMBER_EMAILS: Record<FirmKey, string> = {
+  first: 'Member@First.Test',
+  second: 'member@second.test',
+};
+const LATER = '2999-01-01T00:00:00.000Z';
 
 let server: TestServer;
 let displays: Record<FirmKey, RecordingDisplay[]>;
@@ -88,6 +102,88 @@ describe('two firms with three displays each', () => {
     for (const firm of FIRM_KEYS) {
       const expected = [...SEQUENCES[firm], SENTINELS[firm]].map((modeId) => [{ modeId }]);
       for (const { received } of displays[firm]) expect(received).toEqual(expected);
+    }
+  });
+});
+
+/** A display and a firm user's control screen on one connection, each recording what it gets. */
+interface Pair {
+  display: Socket;
+  control: Socket;
+  modes: unknown[][];
+  signals: unknown[][];
+}
+
+function firmId(firm: FirmKey): string {
+  const row = server.db
+    .prepare<{ name: string }, { id: string }>('SELECT id FROM firms WHERE name = @name')
+    .get({ name: FIRM_NAMES[firm] });
+  if (!row) throw new Error(`No firm named ${FIRM_NAMES[firm]}`);
+  return row.id;
+}
+
+/** Two pairs of one firm: the admin's control screen and a member's, each with its own display. */
+async function connectPairs(firm: FirmKey): Promise<Pair[]> {
+  insertUser(server.db, LATER, {
+    firmId: firmId(firm),
+    role: 'member',
+    email: MEMBER_EMAILS[firm],
+    passwordHash: 'unused',
+  });
+  const pairs: Pair[] = [];
+  for (const email of [ADMIN_EMAILS[firm], MEMBER_EMAILS[firm]]) {
+    const { display, control } = connectDisplayAndControl(
+      server.url,
+      { token: await issueDisplayToken(server, ADMIN_EMAILS[firm]) },
+      { token: userTokenFor(server.db, email) },
+    );
+    pairs.push({
+      display,
+      control,
+      modes: recordModeChanges(display),
+      signals: recordModeChangedSignals(control),
+    });
+  }
+  await Promise.all(
+    pairs.flatMap(({ display, control }) => [connected(display), connected(control)]),
+  );
+  return pairs;
+}
+
+/**
+ * Resolves with how many signals the pair's control screen had when its display got `modeId`.
+ * `broadcastModeChange` emits to the displays before the control screens, so on the shared
+ * connection every earlier signal has arrived by then, and this event's own signal has not.
+ */
+function signalsWhenDisplayGets({ display, signals }: Pair, modeId: string): Promise<number> {
+  return new Promise((resolve) => {
+    display.on('mode-change', (payload: { modeId: string }) => {
+      if (payload.modeId === modeId) resolve(signals.length);
+    });
+  });
+}
+
+describe('two firms with control screens and displays on shared connections', () => {
+  let pairs: Record<FirmKey, Pair[]>;
+
+  beforeEach(async () => {
+    pairs = { first: await connectPairs('first'), second: await connectPairs('second') };
+  });
+
+  it("signal every control screen of the firm once per event, and none of the other firm's", async () => {
+    await Promise.all(FIRM_KEYS.map((firm) => postSequence(firm)));
+
+    // Barrier per firm, after both sequences were answered: a signal leaked from either sequence
+    // (or from the first firm's barrier) would be counted before the barrier event.
+    for (const firm of FIRM_KEYS) {
+      const counts = pairs[firm].map((pair) => signalsWhenDisplayGets(pair, SENTINELS[firm]));
+      await setMode(firm, SENTINELS[firm]);
+      expect(await Promise.all(counts)).toEqual([SEQUENCES[firm].length, SEQUENCES[firm].length]);
+    }
+
+    for (const firm of FIRM_KEYS) {
+      const expected = [...SEQUENCES[firm], SENTINELS[firm]].map((modeId) => [{ modeId }]);
+      for (const { modes } of pairs[firm]) expect(modes).toEqual(expected);
     }
   });
 });
