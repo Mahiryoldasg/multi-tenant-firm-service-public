@@ -1,3 +1,6 @@
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { Server } from 'socket.io';
 import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -5,7 +8,13 @@ import {
   INVALID_DISPLAY_TOKEN_MESSAGE,
   USER_TOKEN_ON_SOCKET_MESSAGE,
 } from '../../src/server/realtime/display-auth.ts';
-import { openDisplayConnection, type DisplayConnection } from '../../web/src/display/connection.ts';
+import {
+  MODE_SYNC_TIMEOUT_REASON,
+  openDisplayConnection,
+  UNEXPECTED_MODE_ANSWER_REASON,
+  type DisplayConnection,
+  type DisplayConnectionOptions,
+} from '../../web/src/display/connection.ts';
 import type { SimulatorEvent } from '../../web/src/display/simulator.ts';
 import { userTokenFor } from '../helpers/auth.ts';
 import { TEST_SEED } from '../helpers/db.ts';
@@ -22,30 +31,62 @@ const WAIT = { timeout: 5_000 };
 
 let server: TestServer;
 const connections: DisplayConnection[] = [];
+const stubs: Server[] = [];
 
 beforeEach(async () => {
   server = await startTestServer();
 });
 
 afterEach(async () => {
-  // Closed before the server, so no reconnection loop outlives it.
+  // Closed before the servers, so no reconnection loop outlives them.
   for (const connection of connections) connection.close();
   connections.length = 0;
   await stopTestServer(server);
+  await Promise.all(stubs.map((stub) => stub.close()));
+  stubs.length = 0;
 });
 
 /** Opens a connection as the simulator page does and records every event it reports. */
-function openDisplay(token: string) {
+function openDisplay(token: string, url = server.url, options?: DisplayConnectionOptions) {
   const events: SimulatorEvent[] = [];
-  const connection = openDisplayConnection(server.url, token, (event) => events.push(event));
+  const connection = openDisplayConnection(url, token, (event) => events.push(event), options);
   connections.push(connection);
   return { connection, events };
 }
 
 async function openConnectedDisplay() {
   const display = openDisplay(await issueDisplayToken(server, FIRM.adminEmail));
-  await vi.waitFor(() => expect(display.events).toEqual([{ type: 'connected' }]), WAIT);
+  await vi.waitFor(
+    () =>
+      expect(display.events).toEqual([
+        { type: 'connected' },
+        { type: 'mode-synced', modeId: null },
+      ]),
+    WAIT,
+  );
   return display;
+}
+
+async function setMode(modeId: string): Promise<void> {
+  const res = await request(server.app)
+    .post('/api/mode')
+    .set('Authorization', `Bearer ${userTokenFor(server.db, FIRM.adminEmail)}`)
+    .send({ modeId });
+  expect(res.status).toBe(200);
+}
+
+/**
+ * A bare Socket.IO server that admits any client and hands each `mode:get` ack to `answer`, so a
+ * case can answer late, wrongly or never, which the real server does not.
+ */
+async function startStub(answer: (ack: (value: unknown) => void) => void) {
+  const httpServer = createServer();
+  const stub = new Server(httpServer);
+  stubs.push(stub);
+  stub.on('connection', (socket) => socket.on('mode:get', answer));
+  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  const { port } = httpServer.address() as AddressInfo;
+  return { stub, url: `http://127.0.0.1:${port}` };
 }
 
 function eventTypes(events: SimulatorEvent[]) {
@@ -74,7 +115,23 @@ describe('openDisplayConnection', () => {
       () =>
         expect(display.events).toEqual([
           { type: 'connected' },
+          { type: 'mode-synced', modeId: null },
           { type: 'mode-change', modeId: 'lobby' },
+        ]),
+      WAIT,
+    );
+  });
+
+  it("asks for the firm's current mode on connect", async () => {
+    await setMode('  lobby  ');
+
+    const display = openDisplay(await issueDisplayToken(server, FIRM.adminEmail));
+
+    await vi.waitFor(
+      () =>
+        expect(display.events).toEqual([
+          { type: 'connected' },
+          { type: 'mode-synced', modeId: '  lobby  ' },
         ]),
       WAIT,
     );
@@ -112,6 +169,7 @@ describe('openDisplayConnection', () => {
       () =>
         expect(display.events).toEqual([
           { type: 'connected' },
+          { type: 'mode-synced', modeId: null },
           { type: 'closed-by-server', reason: 'io server disconnect' },
         ]),
       WAIT,
@@ -127,7 +185,35 @@ describe('openDisplayConnection', () => {
 
     await vi.waitFor(
       () =>
-        expect(eventTypes(display.events)).toEqual(['connected', 'connection-lost', 'connected']),
+        expect(eventTypes(display.events)).toEqual([
+          'connected',
+          'mode-synced',
+          'connection-lost',
+          'connected',
+          'mode-synced',
+        ]),
+      WAIT,
+    );
+  });
+
+  it('asks again after a reconnect, and reports the mode set while it was away', async () => {
+    const display = await openConnectedDisplay();
+    const [serverSocket] = server.realtime.io.of('/').sockets.values();
+    if (!serverSocket) throw new Error('The display has no server socket');
+
+    serverSocket.conn.close();
+    // The client waits at least half a second before its first reconnect, so the mode is set while
+    // it is away and no `mode-change` can bring it.
+    await vi.waitFor(() => expect(eventTypes(display.events)).toContain('connection-lost'), WAIT);
+    await setMode('night');
+
+    await vi.waitFor(
+      () =>
+        expect(display.events.slice(2)).toEqual([
+          { type: 'connection-lost', reason: 'transport close' },
+          { type: 'connected' },
+          { type: 'mode-synced', modeId: 'night' },
+        ]),
       WAIT,
     );
   });
@@ -138,6 +224,89 @@ describe('openDisplayConnection', () => {
     display.connection.close();
 
     await vi.waitFor(() => expect(server.realtime.io.of('/').sockets.size).toBe(0), WAIT);
+    expect(display.events).toEqual([{ type: 'connected' }, { type: 'mode-synced', modeId: null }]);
+  });
+});
+
+describe('openDisplayConnection with a server that answers mode:get badly', () => {
+  it('reports a request left unanswered, and stays connected', async () => {
+    const { url } = await startStub(() => {});
+
+    const display = openDisplay('any', url, { modeSyncTimeoutMs: 100 });
+
+    await vi.waitFor(
+      () =>
+        expect(display.events).toEqual([
+          { type: 'connected' },
+          { type: 'mode-sync-failed', reason: MODE_SYNC_TIMEOUT_REASON },
+        ]),
+      WAIT,
+    );
+  });
+
+  it("reports an error envelope's message", async () => {
+    const { url } = await startStub((ack) =>
+      ack({ error: { code: 'INTERNAL_ERROR', message: 'Sunucu hatası.' } }),
+    );
+
+    const display = openDisplay('any', url);
+
+    await vi.waitFor(
+      () =>
+        expect(display.events).toEqual([
+          { type: 'connected' },
+          { type: 'mode-sync-failed', reason: 'Sunucu hatası.' },
+        ]),
+      WAIT,
+    );
+  });
+
+  it.each([
+    ['an empty object', {}],
+    ['a numeric modeId', { modeId: 42 }],
+    ['a bare string', 'lobby'],
+    ['an error without a message', { error: { code: 'INTERNAL_ERROR' } }],
+  ])('reports %s as an unexpected answer', async (_label, answer) => {
+    const { url } = await startStub((ack) => ack(answer));
+
+    const display = openDisplay('any', url);
+
+    await vi.waitFor(
+      () =>
+        expect(display.events).toEqual([
+          { type: 'connected' },
+          { type: 'mode-sync-failed', reason: UNEXPECTED_MODE_ANSWER_REASON },
+        ]),
+      WAIT,
+    );
+  });
+
+  it('reports nothing for a pending request when the user closes the connection', async () => {
+    const { stub, url } = await startStub(() => {});
+    const display = openDisplay('any', url);
+    await vi.waitFor(() => expect(display.events).toEqual([{ type: 'connected' }]), WAIT);
+
+    display.connection.close();
+
+    await vi.waitFor(() => expect(stub.of('/').sockets.size).toBe(0), WAIT);
     expect(display.events).toEqual([{ type: 'connected' }]);
+  });
+
+  it('reports only the close for a pending request when the server closes the connection', async () => {
+    const { stub, url } = await startStub(() => {});
+    const display = openDisplay('any', url);
+    await vi.waitFor(() => expect(display.events).toEqual([{ type: 'connected' }]), WAIT);
+
+    stub.disconnectSockets(true);
+
+    // The client fails the pending request right after it reports the close, in the same call.
+    await vi.waitFor(
+      () =>
+        expect(display.events).toEqual([
+          { type: 'connected' },
+          { type: 'closed-by-server', reason: 'io server disconnect' },
+        ]),
+      WAIT,
+    );
   });
 });

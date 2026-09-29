@@ -132,11 +132,18 @@ namespace, sözleşme §4):
   `firmId`, `sub` ya da `role` yok ve firma hâlâ aktif. Aksi halde bağlantı `connect_error` ile
   reddedilir.
 - Socket, `firm:<firmId>` odasına girer; firma id'si doğrulanmış token'dan ve veritabanındaki
-  firma satırından gelir. İstemci oda seçemez; sunucu istemciden hiçbir olay dinlemez.
+  firma satırından gelir. İstemci oda seçemez; sunucu istemciden yalnız sözleşme dışı `mode:get`
+  isteğini dinler (aşağıda).
 - `mode-change` yalnız `broadcastModeChange(firmId, modeId)` ile gönderilir. Tenant handler'ı
   ona da `req.tenant.displays` üzerinden ulaşır; firma burada da scope kurulurken sabitlenir.
 - Başarılı her `POST /api/mode`, değer değişmese de olayı gönderir. Bağlanınca hiçbir şey
   gönderilmez.
+- Bağlı bir display güncel modu sözleşme dışı `mode:get` isteğiyle sorabilir. Yanıt ack olarak
+  yalnız soran socket'e gider ve `GET /api/mode` ile aynı biçimdedir: `{ modeId }`, hiç mod
+  seçilmediyse `null`. Firma, handshake'te sabitlenen firmadır; mod `createTenantScope` üzerinden
+  okunur ve istekteki hiçbir argüman başka bir firmayı adlandıramaz. İstek hiçbir olay tetiklemez.
+- `mode:get` okuyup aynı senkron çağrıda yanıtlar; `POST /api/mode` da kaydedip aynı çağrıda
+  yayınlar. Bu yüzden display, yanıtı ve `mode-change` olaylarını modun değiştiği sırayla alır.
 - Firma silinince, commit'ten sonra firmanın odasındaki bütün socket'ler koparılır; yeniden
   bağlanmaya çalışan display, aktif firma kontrolünde reddedilir.
 - Handshake kontrolü senkrondur: Socket.IO socket'i bu zincirden bir `process.nextTick` sonra
@@ -177,7 +184,8 @@ tutulur:
   Aynı dosyada iki firmanın admin ve üye kontrol ekranları da bağlıdır: her ekran kendi firmasının
   her olayında tam bir `mode:changed` alır, diğer firmanınkini hiç almaz. Sinyal veri taşımadığı
   için her kontrol ekranı bir display'le aynı bağlantıyı paylaşır ve sayım, o display'e gelen
-  bariyer olayında yapılır.
+  bariyer olayında yapılır. İki firmanın altı display'i `mode:get`'i aynı anda da sorar: her biri
+  yalnız kendi firmasının modunu alır ve istekler hiçbir display'e olay göndermez.
 
 ## Kimlik doğrulama ve yetki
 
@@ -274,8 +282,9 @@ Her madde: seçim, neden, bedeli.
   bir katman gerekir.
 - **Koşulsuz yayın, bağlanınca yayın yok.** Sözleşme her başarılı `POST /api/mode`'da olay istiyor;
   bağlanınca kendiliğinden gönderilen bir olay, sözleşme testlerindeki "tam bir olay" ya da "hiç olay
-  yok" beklentilerini bozabilirdi. Bedeli: yeniden bağlanan bir display, bir sonraki
-  `POST /api/mode`'a kadar güncel modu öğrenemez (N4).
+  yok" beklentilerini bozabilirdi. Bedeli: yeniden bağlanan bir display güncel modu kendiliğinden
+  almaz, onu sözleşme dışı `mode:get` ile sorması gerekir (N4). Simülatör her bağlanışta sorar;
+  yalnız sözleşmedeki olayı bilen bir display ise bir sonraki `POST /api/mode`'u bekler.
 - **Kontrol kanalında veri yok, yalnız sinyal.** `/control` her değişiklikte yalnız `mode:changed`
   gönderir; mod değeri, kullanıcıyı her istekte yeniden denetleyen HTTP'den okunur. Bu yüzden
   açık bir bağlantı, çalışan silinince, rolü değişince ya da token'ının süresi dolunca koparılmaz:
@@ -331,7 +340,10 @@ koparıyoruz; yeniden bağlanma handshake'te reddedilir.
 senkron tanımlı değil (§6 bunu serbest bırakıyor). §4'e göre yeniden bağlanan display'in senkronu
 koşulsuz yayına dayanır; yani display, bir sonraki `POST /api/mode`'a kadar güncel modu bilemez. Ne
 yaptık: bağlanınca kendiliğinden olay göndermiyoruz; sözleşme testlerindeki olay sayısı beklentilerini
-bozabilirdi. Öneri: tanımlı bir socket isteği, örneğin ack ile yanıtlanan bir `mode:get`.
+bozabilirdi. Bunun yerine sözleşme dışı, ack ile yanıtlanan bir `mode:get` ekledik: bağlı bir
+display güncel modu sorabilir, yanıt yalnız ona gider ve `GET /api/mode` ile aynı biçimdedir. Öneri:
+bu isteğin ya da bir eşdeğerinin sözleşmeye girmesi; o zaman her display yeniden bağlanınca
+modunu öğrenebilir.
 
 **N5: Çalışanı id ile okuma yok.** A firmasının token'ıyla B firmasının çalışanının
 "okunamaz" olduğunun test edilmesi gerekir ve §3'teki `403` kuralı `/api/employees/:id` yolunu
@@ -372,7 +384,7 @@ id'sidir. Sözleşmedeki claim'ler değişmedi; revoke uygulanmadı.
 | Kullanıcı token'ının ömrü  | `USER_TOKEN_TTL`, varsayılan 12 saat; refresh token yok.                                                                                                                                                                                                                                                                 | §6 oturum politikalarını serbest bırakır.                                                                              |
 | Platform admin'de `firmId` | Login yanıtında ve token'da hiç yok, `null` değil.                                                                                                                                                                                                                                                                       | §2 "platform_admin'de firmId yoktur"; §3 ikisini de kabul eder.                                                        |
 | Son `firm_admin`           | Koruma yok.                                                                                                                                                                                                                                                                                                              | N2.                                                                                                                    |
-| Bağlanınca mod             | Gönderilmez.                                                                                                                                                                                                                                                                                                             | N4; §6 serbest bırakır.                                                                                                |
+| Bağlanınca mod             | Gönderilmez; display `mode:get` ile sorabilir.                                                                                                                                                                                                                                                                           | N4; §6 serbest bırakır.                                                                                                |
 | Yanıt alanları             | Yalnız sözleşmedeki alanlar.                                                                                                                                                                                                                                                                                             | Ek alan bir şey katmıyor.                                                                                              |
 | Giriş hatası               | Bilinmeyen e-posta, yanlış şifre, silinmiş kullanıcı ve silinmiş firma için aynı `401` mesajı.                                                                                                                                                                                                                           | Hesap tahminini önler.                                                                                                 |
 | `error.message`            | Türkçe, kısa, kullanıcıya yönelik; `code` sözleşmedeki gibi. Eksik ve başka firmanın kaynağı aynı mesajı alır.                                                                                                                                                                                                           | Sözleşme örneği Türkçe; testler `code`'a bakar; i18n kapsam dışı.                                                      |
@@ -390,6 +402,7 @@ id'sidir. Sözleşmedeki claim'ler değişmedi; revoke uygulanmadı.
 - `500 INTERNAL_ERROR`: beklenmeyen sunucu hataları için
 - Display token'ında `jti` claim'i (N8)
 - Kontrol arayüzünün `/control` socket namespace'i ve veri taşımayan `mode:changed` event'i
+- Display kanalında ack ile yanıtlanan `mode:get` isteği (N4)
 
 ## Database-per-tenant
 
@@ -485,6 +498,7 @@ Gerçekleşen (`git log --first-parent main`):
   maddelerine başlanmamıştı.
 - Mimari diyagram 29.09'da, bu belgeden sonra eklendi; P1 böylece tamamlandı.
 - P2'nin 17. maddesi (kontrol arayüzünde canlı mod) 29.09'da yapıldı.
+- P2'nin 18. maddesi (display'in güncel modu `mode:get` ile isteyebilmesi) de 29.09'da yapıldı.
 
 Her özellik küçük, incelenmiş adımlarla ve adım başına bir commit'le yapıldı. İncelemelerde bulunan
 hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
@@ -506,8 +520,7 @@ hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
   klondan doğrulandı; WSL ya da Linux'ta denenmedi.
 - **Tarayıcıda uçtan uca testler:** arayüzün DOM'suz modülleri test ediliyor, ama bir tarayıcı test
   altyapısı yok; arayüz elle doğrulandı.
-- **Kalan P2 bonusları:** display'in güncel modu isteyebildiği ack'li bir `mode:get` (N4) ve cihaz
-  eşleştirme akışı.
+- **Kalan P2 bonusu:** cihaz eşleştirme akışı.
 
 ## AI kullanımı
 

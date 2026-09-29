@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   INITIAL_SIMULATOR_STATE,
   LOG_LIMIT,
+  NO_MODE_DETAIL,
   simulatorReducer,
   type SimulatorAction,
   type SimulatorState,
@@ -18,11 +19,12 @@ const connectedWithMode = run([
 ]);
 
 describe('simulatorReducer', () => {
-  it('starts idle, with no reason, no mode and an empty log', () => {
+  it('starts idle, with no reason, no mode, no sync error and an empty log', () => {
     expect(INITIAL_SIMULATOR_STATE).toMatchObject({
       status: 'idle',
       reason: null,
       lastMode: null,
+      modeSyncError: null,
       log: [],
     });
   });
@@ -112,6 +114,92 @@ describe('simulatorReducer', () => {
     expect(state.reason).toBeNull();
     expect(state.lastMode).toEqual({ modeId: 'lobby', at: 3 });
     expect(state.log[0]).toMatchObject({ type: 'closed', detail: null });
+  });
+
+  it('records a mode:get answer with its time, and logs it', () => {
+    const state = run([
+      { type: 'connecting', at: 1 },
+      { type: 'connected', at: 2 },
+      { type: 'mode-synced', modeId: 'lobby', at: 3 },
+    ]);
+
+    expect(state.status).toBe('connected');
+    expect(state.lastMode).toEqual({ modeId: 'lobby', at: 3 });
+    expect(state.log[0]).toMatchObject({ type: 'mode-synced', detail: 'lobby', at: 3 });
+  });
+
+  it('records an answer without a mode as a null modeId', () => {
+    const state = run([
+      { type: 'connecting', at: 1 },
+      { type: 'connected', at: 2 },
+      { type: 'mode-synced', modeId: null, at: 3 },
+    ]);
+
+    expect(state.lastMode).toEqual({ modeId: null, at: 3 });
+    expect(state.log[0]).toMatchObject({ type: 'mode-synced', detail: NO_MODE_DETAIL });
+  });
+
+  it.each([
+    {
+      order: 'a mode:get answer after a mode-change',
+      actions: [
+        { type: 'mode-change', modeId: 'lobby', at: 4 },
+        { type: 'mode-synced', modeId: 'night', at: 5 },
+      ],
+      expected: { modeId: 'night', at: 5 },
+    },
+    {
+      order: 'a mode-change after a mode:get answer',
+      actions: [
+        { type: 'mode-synced', modeId: 'lobby', at: 4 },
+        { type: 'mode-change', modeId: 'night', at: 5 },
+      ],
+      expected: { modeId: 'night', at: 5 },
+    },
+  ] as { order: string; actions: SimulatorAction[]; expected: unknown }[])(
+    'keeps whichever mode arrives last: $order',
+    ({ actions, expected }) => {
+      expect(run(actions, connectedWithMode).lastMode).toEqual(expected);
+    },
+  );
+
+  it('keeps the status and the last mode when mode:get fails, and logs why', () => {
+    const state = run(
+      [{ type: 'mode-sync-failed', reason: 'Sunucu hatası.', at: 4 }],
+      connectedWithMode,
+    );
+
+    expect(state.status).toBe('connected');
+    expect(state.lastMode).toEqual({ modeId: 'lobby', at: 3 });
+    expect(state.modeSyncError).toBe('Sunucu hatası.');
+    expect(state.log[0]).toMatchObject({ type: 'mode-sync-failed', detail: 'Sunucu hatası.' });
+  });
+
+  it.each([
+    { type: 'mode-synced', modeId: null },
+    { type: 'mode-change', modeId: 'night' },
+  ] as const)('clears the sync error when $type brings a mode', (event) => {
+    const failed = run(
+      [{ type: 'mode-sync-failed', reason: 'Sunucu hatası.', at: 4 }],
+      connectedWithMode,
+    );
+
+    const state = run([{ ...event, at: 5 }], failed);
+
+    expect(state.modeSyncError).toBeNull();
+    expect(state.lastMode).toEqual({ modeId: event.modeId, at: 5 });
+  });
+
+  it('clears the sync error on a new connection, and keeps it through a lost connection', () => {
+    const failed = run(
+      [{ type: 'mode-sync-failed', reason: 'Sunucu hatası.', at: 4 }],
+      connectedWithMode,
+    );
+
+    const lost = run([{ type: 'connection-lost', reason: 'transport close', at: 5 }], failed);
+    expect(lost.modeSyncError).toBe('Sunucu hatası.');
+
+    expect(run([{ type: 'connecting', at: 6 }], lost).modeSyncError).toBeNull();
   });
 
   it('keeps the newest LOG_LIMIT entries, newest first, with unique increasing ids', () => {

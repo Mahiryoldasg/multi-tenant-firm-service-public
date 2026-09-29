@@ -16,7 +16,11 @@ export type SimulatorEvent =
   /** A `disconnect` the client does not retry: the server dropped the display. */
   | { type: 'closed-by-server'; reason: string }
   | { type: 'closed' }
-  | { type: 'mode-change'; modeId: string };
+  | { type: 'mode-change'; modeId: string }
+  /** The answer to `mode:get` (not in the contract): `null` when the firm never set a mode. */
+  | { type: 'mode-synced'; modeId: string | null }
+  /** `mode:get` got no usable answer while connected. */
+  | { type: 'mode-sync-failed'; reason: string };
 
 export type SimulatorEventType = SimulatorEvent['type'];
 
@@ -34,18 +38,24 @@ export interface LogEntry {
 export interface SimulatorState {
   status: SimulatorStatus;
   reason: string | null;
-  lastMode: { modeId: string; at: number } | null;
+  /** `modeId` is `null` when `mode:get` answered that the firm never set a mode. */
+  lastMode: { modeId: string | null; at: number } | null;
+  /** Why the last `mode:get` failed, until a mode arrives or a new connection starts. */
+  modeSyncError: string | null;
   /** Newest first, at most `LOG_LIMIT` entries. */
   log: LogEntry[];
   nextLogId: number;
 }
 
 export const LOG_LIMIT = 100;
+/** The log detail of a `mode:get` answer without a mode. */
+export const NO_MODE_DETAIL = 'mod seçilmemiş (null)';
 
 export const INITIAL_SIMULATOR_STATE: SimulatorState = {
   status: 'idle',
   reason: null,
   lastMode: null,
+  modeSyncError: null,
   log: [],
   nextLogId: 1,
 };
@@ -68,6 +78,8 @@ export const EVENT_LABELS: Record<SimulatorEventType, string> = {
   'closed-by-server': 'disconnect: sunucu bağlantıyı kapattı',
   closed: 'Bağlantı kesildi',
   'mode-change': 'mode-change',
+  'mode-synced': 'mode:get yanıtı',
+  'mode-sync-failed': 'mode:get: mevcut mod alınamadı',
 };
 
 export function simulatorReducer(state: SimulatorState, action: SimulatorAction): SimulatorState {
@@ -88,11 +100,11 @@ export function simulatorReducer(state: SimulatorState, action: SimulatorAction)
 function transition(
   state: SimulatorState,
   action: SimulatorAction,
-): Partial<Pick<SimulatorState, 'status' | 'reason' | 'lastMode'>> {
+): Partial<Pick<SimulatorState, 'status' | 'reason' | 'lastMode' | 'modeSyncError'>> {
   switch (action.type) {
     case 'connecting':
       // A new connection may use another firm's token, so the old firm's mode must not stay on screen.
-      return { status: 'connecting', reason: null, lastMode: null };
+      return { status: 'connecting', reason: null, lastMode: null, modeSyncError: null };
     case 'connected':
       return { status: 'connected', reason: null };
     case 'rejected':
@@ -105,12 +117,18 @@ function transition(
     case 'closed':
       return { status: 'idle', reason: null };
     case 'mode-change':
-      return { lastMode: { modeId: action.modeId, at: action.at } };
+    case 'mode-synced':
+      // Whichever arrives last is current: the server answers and broadcasts in the order the mode
+      // changed.
+      return { lastMode: { modeId: action.modeId, at: action.at }, modeSyncError: null };
+    case 'mode-sync-failed':
+      return { modeSyncError: action.reason };
   }
 }
 
 function detailOf(action: SimulatorAction): string | null {
   if (action.type === 'mode-change') return action.modeId;
+  if (action.type === 'mode-synced') return action.modeId ?? NO_MODE_DETAIL;
   return 'reason' in action ? action.reason : null;
 }
 

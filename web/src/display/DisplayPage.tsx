@@ -30,7 +30,9 @@ export function DisplayPage() {
       <p>
         Bu sayfa bir ekran cihazı gibi çalışır: yapıştırdığınız ekran token'ıyla bağlanır ve
         yalnızca o token'ın firmasına giden mode-change olaylarını alır. Sunucu bağlantı anında
-        mevcut modu göndermez; mod, firma yöneticisi onu bir sonraki kaydettiğinde görünür.
+        kendiliğinden bir şey göndermez; bu yüzden simülatör her bağlanışında, otomatik yeniden
+        bağlanmalar dahil, mevcut modu sözleşme dışı mode:get isteğiyle sorar, sonra mode-change
+        olaylarını izler.
       </p>
       <p>
         İzolasyonu görmek için bu sayfayı iki pencerede açıp iki farklı firmanın token'ıyla
@@ -59,7 +61,7 @@ export function DisplayPage() {
         </div>
       </form>
       <ConnectionStatus state={state} />
-      <LastMode lastMode={state.lastMode} />
+      <LastMode lastMode={state.lastMode} modeSyncError={state.modeSyncError} />
       <EventLog log={state.log} />
     </main>
   );
@@ -89,24 +91,37 @@ function ConnectionStatus({ state }: { state: SimulatorState }) {
   );
 }
 
-function LastMode({ lastMode }: { lastMode: SimulatorState['lastMode'] }) {
+function LastMode({ lastMode, modeSyncError }: Pick<SimulatorState, 'lastMode' | 'modeSyncError'>) {
   return (
     <section aria-labelledby="mode-heading">
       <h2 id="mode-heading">Son mod</h2>
       <div aria-live="polite" aria-atomic="true">
-        {lastMode === null ? (
-          <p>Henüz mod değişikliği alınmadı.</p>
-        ) : (
-          <>
-            <p className="mode-value">{lastMode.modeId}</p>
-            <p>
-              Alındı:{' '}
-              <time dateTime={new Date(lastMode.at).toISOString()}>{formatTime(lastMode.at)}</time>
-            </p>
-          </>
-        )}
+        <ModeValue lastMode={lastMode} />
+        {modeSyncError !== null && <p className="error">Mevcut mod alınamadı: {modeSyncError}</p>}
       </div>
     </section>
+  );
+}
+
+function ModeValue({ lastMode }: Pick<SimulatorState, 'lastMode'>) {
+  if (lastMode === null) return <p>Henüz mod bilgisi alınmadı.</p>;
+
+  const time = (
+    <time dateTime={new Date(lastMode.at).toISOString()}>{formatTime(lastMode.at)}</time>
+  );
+  if (lastMode.modeId === null) {
+    return (
+      <>
+        <p>Bu firma için henüz bir mod seçilmemiş.</p>
+        <p>Soruldu: {time}</p>
+      </>
+    );
+  }
+  return (
+    <>
+      <p className="mode-value">{lastMode.modeId}</p>
+      <p>Alındı: {time}</p>
+    </>
   );
 }
 
