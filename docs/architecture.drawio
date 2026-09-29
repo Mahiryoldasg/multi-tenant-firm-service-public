@@ -53,27 +53,27 @@
         </mxCell>
 
         <!-- Clients -->
-        <mxCell id="client-ui" value="&lt;b&gt;Kontrol arayüzü&lt;/b&gt; (React SPA, web/src/)&lt;br&gt;yalnız herkese açık API'yi kullanır:&lt;br&gt;fetch + Authorization: Bearer &amp;lt;kullanıcı JWT&amp;gt;&lt;br&gt;token sessionStorage'da; 401 oturumu kapatır" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
-          <mxGeometry x="325" y="105" width="300" height="105" as="geometry" />
+        <mxCell id="client-ui" value="&lt;b&gt;Kontrol arayüzü&lt;/b&gt; (React SPA, web/src/)&lt;br&gt;veriyi yalnız herkese açık API'den okur:&lt;br&gt;fetch + Authorization: Bearer &amp;lt;kullanıcı JWT&amp;gt;&lt;br&gt;token sessionStorage'da; 401 oturumu kapatır&lt;br&gt;canlı mod: /control socket'i, aynı JWT;&lt;br&gt;mode:changed gelince GET /api/mode" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="325" y="98" width="300" height="117" as="geometry" />
         </mxCell>
         <mxCell id="client-swagger" value="&lt;b&gt;Swagger UI&lt;/b&gt; (/docs)&lt;br&gt;OpenAPI belgesi: /openapi.json&lt;br&gt;Authorize ile yapıştırılan Bearer &amp;lt;kullanıcı JWT&amp;gt;" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
-          <mxGeometry x="640" y="105" width="270" height="105" as="geometry" />
+          <mxGeometry x="640" y="98" width="270" height="117" as="geometry" />
         </mxCell>
         <mxCell id="client-api" value="&lt;b&gt;API istemcileri&lt;/b&gt;&lt;br&gt;test paketi, curl&lt;br&gt;Authorization: Bearer &amp;lt;kullanıcı JWT&amp;gt;" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
-          <mxGeometry x="925" y="105" width="280" height="105" as="geometry" />
+          <mxGeometry x="925" y="98" width="280" height="117" as="geometry" />
         </mxCell>
         <mxCell id="client-display-a" value="&lt;b&gt;Display (Firma A)&lt;/b&gt;&lt;br&gt;cihaz ya da /display simülatörü&lt;br&gt;io(url, { auth: { token } })&lt;br&gt;token: A'nın display token'ı" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
-          <mxGeometry x="1250" y="105" width="225" height="105" as="geometry" />
+          <mxGeometry x="1250" y="98" width="225" height="117" as="geometry" />
         </mxCell>
         <mxCell id="client-display-b" value="&lt;b&gt;Display (Firma B)&lt;/b&gt;&lt;br&gt;cihaz ya da /display simülatörü&lt;br&gt;io(url, { auth: { token } })&lt;br&gt;token: B'nin display token'ı" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#666666;fontSize=12;align=center;verticalAlign=middle;spacing=6;" vertex="1" parent="1">
-          <mxGeometry x="1490" y="105" width="225" height="105" as="geometry" />
+          <mxGeometry x="1490" y="98" width="225" height="117" as="geometry" />
         </mxCell>
 
         <!-- API layer -->
         <mxCell id="express" value="&lt;b&gt;Express uygulaması&lt;/b&gt; (src/server/app.ts)&lt;br&gt;pino-http (JSON log) → jsonBodyParser (bozuk JSON: 400)&lt;br&gt;herkese açık yollar: /health, /openapi.json, /docs, POST /api/auth/login (kullanıcı JWT'si üretir, HS256)&lt;br&gt;üretimde arayüz: dist/web statik dosyaları ve SPA fallback, aynı origin&lt;br&gt;kapıların sırası sözleşmenin kontrol sırasını verir: 401 → 403 → 404 → 400 → 409" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
           <mxGeometry x="325" y="250" width="880" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="socket-server" value="&lt;b&gt;Socket.IO sunucusu&lt;/b&gt; (src/server/realtime/)&lt;br&gt;index.ts'te aynı http sunucusuna bağlanır, yol /socket.io&lt;br&gt;istemciden hiçbir olay dinlemez; bağlanınca hiçbir şey göndermez" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
+        <mxCell id="socket-server" value="&lt;b&gt;Socket.IO sunucusu&lt;/b&gt; (src/server/realtime/)&lt;br&gt;index.ts'te aynı http sunucusuna bağlanır, yol /socket.io&lt;br&gt;iki namespace: / (display'ler, sözleşme §4) ve&lt;br&gt;/control (kontrol arayüzünün canlı modu, sözleşme dışı)&lt;br&gt;istemciden hiçbir olay dinlemez; bağlanınca hiçbir şey göndermez" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#82B366;fontSize=12;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
           <mxGeometry x="1250" y="250" width="465" height="120" as="geometry" />
         </mxCell>
         <mxCell id="error-handler" value="&lt;b&gt;errorHandler&lt;/b&gt;&lt;br&gt;(http/error-handler.ts)&lt;br&gt;&lt;br&gt;pipeline'ın ve handler'ların her hatası tek zarfa döner:&lt;br&gt;{ error: { code, message } }&lt;br&gt;&lt;br&gt;başka firmanın, hiç olmayan ve silinmiş kaynağı aynı 404'ü ve aynı mesajı alır&lt;br&gt;&lt;br&gt;iç ayrıntılar yalnız loglara gider" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=12;spacingRight=8;" vertex="1" parent="1">
@@ -90,7 +90,7 @@
         <mxCell id="require-platform-admin" value="&lt;b&gt;requirePlatformAdmin&lt;/b&gt; (/api/firms)&lt;br&gt;platform admin değilse her metot ve alt yolda 403" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
           <mxGeometry x="775" y="474" width="430" height="72" as="geometry" />
         </mxCell>
-        <mxCell id="handshake" value="&lt;b&gt;Handshake&lt;/b&gt; (io.use → authenticateDisplay)&lt;br&gt;yalnız display token: HS256, kind: 'display', string firmId, sub ve role yok&lt;br&gt;firma hâlâ aktif mi: firms tablosundan okunur&lt;br&gt;kullanıcı token'ı, geçersiz token ya da silinmiş firma: connect_error&lt;br&gt;socket.data.firmId token'dan değil firma satırından gelir" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
+        <mxCell id="handshake" value="&lt;b&gt;Handshake&lt;/b&gt; (admitToFirmRoom: namespace.use, senkron)&lt;br&gt;&lt;b&gt;/&lt;/b&gt; → authenticateDisplay: yalnız display token (HS256, kind: 'display',&lt;br&gt;string firmId, sub ve role yok); firma hâlâ aktif mi: firms tablosundan&lt;br&gt;&lt;b&gt;/control&lt;/b&gt; → authenticateControl: yalnız aktif bir firma kullanıcısının&lt;br&gt;token'ı (firm_admin, member); kullanıcı ve firması users ve firms'ten&lt;br&gt;diğer her token (platform admin dahil): connect_error&lt;br&gt;socket.data.firmId token'dan değil veritabanı satırından gelir" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=middle;spacingLeft=24;spacingRight=8;" vertex="1" parent="1">
           <mxGeometry x="1250" y="396" width="465" height="150" as="geometry" />
         </mxCell>
 
@@ -104,17 +104,17 @@
         <mxCell id="platform-module" value="&lt;b&gt;Platform modülü&lt;/b&gt; (modules/platform/)&lt;br&gt;firma listeleme, oluşturma (ilk admin'le, atomik), ad değiştirme, soft delete&lt;br&gt;firma verisine platform düzeyinde, db ile doğrudan erişir&lt;br&gt;firma silinince realtime.disconnectFirm(firmId)&lt;br&gt;giriş, authenticate ve handshake de kullanıcı ve firma aramasını buradan yapar" style="rounded=1;arcSize=6;whiteSpace=wrap;html=1;fillColor=#DAE8FC;strokeColor=#6C8EBF;fontSize=12;align=left;verticalAlign=middle;spacingLeft=10;spacingRight=8;" vertex="1" parent="1">
           <mxGeometry x="775" y="572" width="430" height="140" as="geometry" />
         </mxCell>
-        <mxCell id="rooms" value="&lt;b&gt;Firma odaları&lt;/b&gt; (iç ad: firm:&amp;lt;firmId&amp;gt;)" style="rounded=1;arcSize=3;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=top;spacingLeft=24;spacingTop=6;spacingRight=8;" vertex="1" parent="1">
+        <mxCell id="rooms" value="&lt;b&gt;Firma odaları&lt;/b&gt; (iç ad: firm:&amp;lt;firmId&amp;gt;; her namespace'in kendi odaları)" style="rounded=1;arcSize=3;whiteSpace=wrap;html=1;fillColor=#D5E8D4;strokeColor=#B85450;strokeWidth=2;fontSize=12;align=left;verticalAlign=top;spacingLeft=24;spacingTop=6;spacingRight=8;" vertex="1" parent="1">
           <mxGeometry x="1250" y="572" width="465" height="305" as="geometry" />
         </mxCell>
-        <mxCell id="room-a" value="&lt;b&gt;firm:A&lt;/b&gt;&lt;br&gt;Firma A'nın display'leri" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="1270" y="612" width="205" height="100" as="geometry" />
+        <mxCell id="room-a" value="&lt;b&gt;firm:A&lt;/b&gt;&lt;br&gt;/: Firma A'nın display'leri&lt;br&gt;/control: kontrol ekranları" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1270" y="605" width="205" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="room-b" value="&lt;b&gt;firm:B&lt;/b&gt;&lt;br&gt;Firma B'nin display'leri" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
-          <mxGeometry x="1490" y="612" width="205" height="100" as="geometry" />
+        <mxCell id="room-b" value="&lt;b&gt;firm:B&lt;/b&gt;&lt;br&gt;/: Firma B'nin display'leri&lt;br&gt;/control: kontrol ekranları" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#82B366;fontSize=12;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="1490" y="605" width="205" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="rooms-notes" value="İstemci oda seçemez: socket, handshake'te doğrulanan firmanın odasına girer (socket.join).&lt;br&gt;broadcastModeChange(firmId, modeId): mode-change { modeId } yalnız o firmanın odasına gider; her başarılı POST /api/mode, değer değişmese de gönderir.&lt;br&gt;disconnectFirm(firmId): firma silinince odadaki bütün socket'ler koparılır; yeniden bağlanma handshake'te reddedilir." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
-          <mxGeometry x="1265" y="725" width="440" height="145" as="geometry" />
+        <mxCell id="rooms-notes" value="İstemci oda seçemez: socket, handshake'te doğrulanan firmanın odasına girer (socket.join).&lt;br&gt;broadcastModeChange(firmId, modeId): yalnız o firmanın odalarına, her başarılı POST /api/mode'da (değer değişmese de): display'lere mode-change { modeId }, kontrol ekranlarına veri taşımayan mode:changed.&lt;br&gt;disconnectFirm(firmId): firma silinince iki namespace'teki odalarının bütün socket'leri koparılır; yeniden bağlanma handshake'te reddedilir." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1265" y="695" width="440" height="175" as="geometry" />
         </mxCell>
 
         <!-- Scoping layer -->
@@ -154,6 +154,14 @@
         </mxCell>
 
         <!-- Socket edges -->
+        <mxCell id="edge-ui-control" value="canlı mod: /control" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E7D32;strokeWidth=2;dashed=1;dashPattern=6 4;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;jumpStyle=arc;jumpSize=10;exitX=0.85;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.4167;entryDx=0;entryDy=0;" edge="1" parent="1" source="client-ui" target="socket-server">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="580" y="232" />
+              <mxPoint x="1228" y="232" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
         <mxCell id="edge-display-a" value="handshake: auth.token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2E7D32;strokeWidth=2;dashed=1;dashPattern=6 4;startArrow=block;startFill=1;endArrow=block;endFill=1;fontSize=11;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.2419;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="client-display-a" target="socket-server">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
@@ -243,7 +251,7 @@
             <mxPoint x="110" y="1163" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="legend-socket-text" value="Socket.IO bağlantısı (WebSocket) ve mode-change olayı" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="legend-socket-text" value="Socket.IO bağlantısı (WebSocket); olaylar: mode-change, mode:changed" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="125" y="1153" width="470" height="20" as="geometry" />
         </mxCell>
         <mxCell id="legend-internal" value="" style="endArrow=block;endFill=1;html=1;rounded=0;strokeColor=#666666;strokeWidth=1.5;" edge="1" parent="1">
@@ -261,7 +269,7 @@
         <mxCell id="legend-lint-text" value="Derleme zamanı kontrolü (lint), çalışma zamanında değil" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="125" y="1223" width="470" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="legend-points" value="&lt;b&gt;İzolasyon noktaları&lt;/b&gt; (DESIGN.md, Tenant izolasyonu → Nerede uygulanır)&lt;br&gt;1. HTTP pipeline'ı: authenticate, requirePlatformAdmin, requireTenant, requireFirmAdmin&lt;br&gt;2. Firmaya bağlı repository'ler (createTenantScope)&lt;br&gt;3. Tenant route'ları yalnız req.tenant görür, db almaz&lt;br&gt;4. Lint sınırı (no-restricted-imports)&lt;br&gt;5. Hata yanıtları: başka firmanın kaynağı da aynı 404&lt;br&gt;6. Gerçek zamanlı kanal: display handshake'i ve firma odaları" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
+        <mxCell id="legend-points" value="&lt;b&gt;İzolasyon noktaları&lt;/b&gt; (DESIGN.md, Tenant izolasyonu → Nerede uygulanır)&lt;br&gt;1. HTTP pipeline'ı: authenticate, requirePlatformAdmin, requireTenant, requireFirmAdmin&lt;br&gt;2. Firmaya bağlı repository'ler (createTenantScope)&lt;br&gt;3. Tenant route'ları yalnız req.tenant görür, db almaz&lt;br&gt;4. Lint sınırı (no-restricted-imports)&lt;br&gt;5. Hata yanıtları: başka firmanın kaynağı da aynı 404&lt;br&gt;6. Gerçek zamanlı kanal: iki namespace'in handshake'i ve firma odaları" style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
           <mxGeometry x="620" y="1050" width="620" height="200" as="geometry" />
         </mxCell>
         <mxCell id="legend-dev" value="&lt;b&gt;Geliştirmede&lt;/b&gt;&lt;br&gt;Arayüz Vite'tan (5173) gelir; Vite /api, /docs, /openapi.json, /health ve /socket.io yollarını API'ye (4000) proxy'ler.&lt;br&gt;&lt;br&gt;&lt;b&gt;Üretimde&lt;/b&gt; (npm start)&lt;br&gt;Express arayüzü dist/web'den aynı origin'de sunar." style="text;html=1;align=left;verticalAlign=top;whiteSpace=wrap;fontSize=12;" vertex="1" parent="1">
