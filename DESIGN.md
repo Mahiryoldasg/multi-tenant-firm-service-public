@@ -8,7 +8,9 @@ API sözleşmesi; bir çelişkide sözleşme kazanır.
 
 Kurulum ve örnek istekler için [README.md](README.md), belgelerin haritası için
 [docs/README.md](docs/README.md), her kararın kısa "neden"i için
-[docs/decisions.md](docs/decisions.md) (İngilizce).
+[docs/decisions.md](docs/decisions.md) (İngilizce). Katmanlar, izolasyonun uygulandığı noktalar ve
+gerçek zamanlı kanal tek resimde: [mimari diyagram](docs/architecture.png)
+([draw.io kaynağı](docs/architecture.drawio)).
 
 ## Veri modeli
 
@@ -68,6 +70,12 @@ ekleyerek değil, unutulması zor bir yapıyla yapmak. Başka firmanın kaynağ�
 değil: yanıt, kaynağın var olup olmadığını da sızdırmaz.
 
 ### Nerede uygulanır
+
+Aşağıdaki mimari diyagramda kırmızı çerçeveli kutuların numaraları, bu bölümdeki maddelerin
+numaralarıyla aynıdır. Diyagramın düzenlenebilir kaynağı:
+[docs/architecture.drawio](docs/architecture.drawio).
+
+![Mimari diyagram: istemciler, Express pipeline'ı, kimlik ve yetki kapıları, route modülleri, firmaya bağlı repository'ler, Socket.IO kanalı ve firma odaları, SQLite; izolasyonun uygulandığı yerler 1-6 numaralı](docs/architecture.png)
 
 **1. HTTP pipeline'ı** ([src/server/app.ts](src/server/app.ts)). Kapılar, sözleşmedeki kontrol
 sırasını (`401 → 403 → 404 → 400 → 409`) veren sırayla dizilir:
@@ -439,6 +447,7 @@ Gerçekleşen (`git log --first-parent main`):
   çalışma planın bir gün önünde tamamlandı.
 - Bu belge yazılırken (29.09 gecesi) P1'den yalnız bu belge ve mimari diyagram kalmıştı; P2
   maddelerine başlanmamıştı.
+- Mimari diyagram 29.09'da, bu belgeden sonra eklendi; P1 böylece tamamlandı.
 
 Her özellik küçük, incelenmiş adımlarla ve adım başına bir commit'le yapıldı. İncelemelerde bulunan
 hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
