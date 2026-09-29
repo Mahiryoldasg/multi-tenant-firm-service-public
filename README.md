@@ -224,16 +224,22 @@ alır:
 ```js
 const socket = io('http://localhost:4000', { auth: { token: '<display token>' } });
 socket.on('mode-change', ({ modeId }) => console.log(modeId));
+// Sözleşme dışı: güncel modu sorar; yanıt { modeId }, hiç seçilmediyse { modeId: null }
+socket.emit('mode:get', (answer) => console.log(answer));
 ```
 
 Kullanıcı token'ı, geçersiz bir token ya da silinmiş bir firmanın token'ı `connect_error` ile
-reddedilir. İzolasyonu tarayıcıda görmek için:
+reddedilir. Sunucu bağlanınca kendiliğinden bir şey göndermez; sözleşme dışı `mode:get` isteği
+yalnız soran display'e kendi firmasının güncel modunu döner ve hiçbir event tetiklemez.
+`/display` simülatörü bunu her bağlanışta, otomatik yeniden bağlanmalar dahil, sorar. İzolasyonu
+tarayıcıda görmek için:
 
 1. Acme ve Globex için birer display token üretin: arayüzde firma admin'i olarak "Ekran
    token'ları" bölümünden ya da yukarıdaki `display-tokens` isteğini `$ACME_TOKEN` ve
    `$GLOBEX_TOKEN` ile göndererek.
 2. İki ayrı pencerede `http://localhost:4000/display` adresini açın, her birine bir firmanın
-   token'ını yapıştırıp bağlanın.
+   token'ını yapıştırıp bağlanın: her pencere, `mode:get` ile kendi firmasının güncel modunu
+   gösterir.
 3. Acme için bir mod seçin (arayüzde "Aktif mod" bölümünden ya da `POST /api/mode` ile):
    `mode-change` yalnız Acme'nin penceresinde görünür.
 
@@ -260,7 +266,11 @@ servis gerekmez. İzolasyon testleri `tests/isolation/` klasöründedir:
 - `cross-tenant.test.ts`: bir firmanın token'ıyla diğer firmanın kaynaklarına her tenant
   endpoint'inde erişim denemesi
 - `invalidation.test.ts`: silinen çalışan ve firma, rol değişimi, display token'ın ömrü
-- `socket-leak.test.ts`: iki firma, firma başına üç display, olayların başka firmaya sızmaması
+- `socket-leak.test.ts`: iki firma, firma başına üç display, olayların başka firmaya sızmaması ve
+  `mode:get`'in her display'e yalnız kendi firmasının modunu döndürmesi
+
+`mode:get`'in davranış testleri (yanıt biçimi, callback'siz istek, hata yanıtı)
+`tests/realtime/mode-get.test.ts` dosyasındadır.
 
 Diğer kontroller: `npm run lint`, `npm run typecheck`, `npm run format:check`.
 
