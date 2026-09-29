@@ -55,7 +55,7 @@ değiştirmek için `.env` içindeki `PORT` değerini düzenleyin.
 | `http://localhost:4000/docs`         | Swagger UI ("Authorize" ile Bearer token girilir)               |
 | `http://localhost:4000/openapi.json` | OpenAPI 3.1 belgesi                                             |
 | `http://localhost:4000/health`       | Sağlık kontrolü: `{"status":"ok"}`                              |
-| `http://localhost:4000/socket.io`    | Socket.IO sunucusu (display'lerin gerçek zamanlı kanalı)        |
+| `http://localhost:4000/socket.io`    | Socket.IO (display'lerin kanalı ve arayüzün `/control` kanalı)  |
 
 ## Seed hesapları
 
@@ -236,6 +236,17 @@ reddedilir. İzolasyonu tarayıcıda görmek için:
    token'ını yapıştırıp bağlanın.
 3. Acme için bir mod seçin (arayüzde "Aktif mod" bölümünden ya da `POST /api/mode` ile):
    `mode-change` yalnız Acme'nin penceresinde görünür.
+
+Kontrol arayüzü de, açık firma ekranlarında modu canlı göstermek için sözleşme dışı `/control`
+namespace'ine kullanıcı token'ıyla bağlanır. Bu kanal veri taşımaz: her başarılı `POST /api/mode`'da
+yalnız o firmanın ekranlarına `mode:changed` sinyali gider ve arayüz modu `GET /api/mode` ile yeniden
+okur. "Aktif mod" bölümündeki alt satır kanalın durumunu gösterir. Görmek için:
+
+1. İki ayrı sekmede `http://localhost:4000/` adresini açın; birinde Acme'nin firma admin'i, diğerinde
+   Acme'nin bir üyesi olarak giriş yapın (üyeyi admin ekranındaki "Yeni çalışan" formuyla
+   ekleyebilirsiniz).
+2. Admin sekmesinde modu değiştirin: üyenin sekmesindeki "Aktif mod" sayfa yenilenmeden güncellenir.
+   Globex admin'iyle açılan bir sekme değişmez.
 
 ## Testler
 
