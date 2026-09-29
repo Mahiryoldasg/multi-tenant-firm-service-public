@@ -12,6 +12,7 @@ import {
   type RecordingDisplay,
   recordModeChangedSignals,
   recordModeChanges,
+  requestMode,
   startTestServer,
   stopTestServer,
   type TestServer,
@@ -79,28 +80,55 @@ async function postSequence(firm: FirmKey): Promise<void> {
   for (const modeId of SEQUENCES[firm]) await setMode(firm, modeId);
 }
 
+/**
+ * Barrier: each firm's own final event, posted after everything before it was answered. Socket.IO
+ * keeps order per connection, so an earlier event that reached a display at all arrived before this
+ * one. It waits for this modeId, not for the next event, since earlier events can still be in flight.
+ */
+async function postSentinels(): Promise<void> {
+  for (const firm of FIRM_KEYS) {
+    await setMode(firm, SENTINELS[firm]);
+    await vi.waitFor(
+      () => {
+        for (const { received } of displays[firm]) {
+          expect(received).toContainEqual([{ modeId: SENTINELS[firm] }]);
+        }
+      },
+      { timeout: 2_000, interval: 10 },
+    );
+  }
+}
+
 describe('two firms with three displays each', () => {
   it("deliver every event to all of the firm's own displays, in order, and none to the other firm's", async () => {
     await Promise.all(FIRM_KEYS.map((firm) => postSequence(firm)));
 
-    // Barrier: each firm's own final event, posted after both sequences were answered. Socket.IO
-    // keeps order per connection, so an event of either sequence that reached a display at all
-    // arrived before this one. It waits for this modeId, not for the next event, since sequence
-    // events can still be in flight.
-    for (const firm of FIRM_KEYS) {
-      await setMode(firm, SENTINELS[firm]);
-      await vi.waitFor(
-        () => {
-          for (const { received } of displays[firm]) {
-            expect(received).toContainEqual([{ modeId: SENTINELS[firm] }]);
-          }
-        },
-        { timeout: 2_000, interval: 10 },
-      );
-    }
+    await postSentinels();
 
     for (const firm of FIRM_KEYS) {
       const expected = [...SEQUENCES[firm], SENTINELS[firm]].map((modeId) => [{ modeId }]);
+      for (const { received } of displays[firm]) expect(received).toEqual(expected);
+    }
+  });
+
+  it("get their own firm's mode from mode:get, and no event from it", async () => {
+    const modes: Record<FirmKey, string> = { first: 'first-lobby', second: 'second-lobby' };
+    await Promise.all(FIRM_KEYS.map((firm) => setMode(firm, modes[firm])));
+
+    // All six at once, so the two firms' requests interleave on the server.
+    const answers = await Promise.all(
+      FIRM_KEYS.flatMap((firm) =>
+        displays[firm].map(async ({ socket }) => ({ firm, answer: await requestMode(socket) })),
+      ),
+    );
+    for (const { firm, answer } of answers) {
+      expect(answer).toStrictEqual({ modeId: modes[firm] });
+    }
+
+    await postSentinels();
+
+    for (const firm of FIRM_KEYS) {
+      const expected = [modes[firm], SENTINELS[firm]].map((modeId) => [{ modeId }]);
       for (const { received } of displays[firm]) expect(received).toEqual(expected);
     }
   });
