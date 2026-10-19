@@ -4,8 +4,10 @@ Birden çok firmanın (tenant) tek bir serviste, birbirinden tamamen yalıtılm�
 firma ve çalışan yönetim servisi. Platform admin firmaları yönetir; firma admin'i kendi firmasının
 çalışanlarını ve aktif modunu yönetir; display istemcileri Socket.IO üzerinden yalnız kendi
 firmalarının `mode-change` olaylarını alır. Dışarıya açılan her şey (yollar, istek ve yanıt
-şekilleri, token'lar, socket olayı, hata kodları)
-API sözleşmesine uyar.
+şekilleri, token'lar, socket olayı, hata kodları) baştan sabit bir API sözleşmesine uyar.
+
+Bu bir kişisel projedir: çok kiracılı bir serviste tenant izolasyonunu ve tenant'a özel gerçek
+zamanlı kanalı uçtan uca (API, veritabanı, arayüz, testler) kurmak için geliştirdim.
 
 Belgelerin ve kodun nerede olduğu ve önerilen okuma sırası için: [docs/README.md](docs/README.md).
 Tasarım kararları, tenant izolasyonunun nerede uygulandığı ve sözleşme notları için:

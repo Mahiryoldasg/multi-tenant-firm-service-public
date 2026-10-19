@@ -3,8 +3,11 @@
 Bu belge, çok kiracılı (multi-tenant) firma ve çalışan yönetim
 servisinin tasarım kararlarını ve gerekçelerini anlatır. Servis Node.js ve TypeScript ile
 yazıldı: HTTP için Express 5, veri için better-sqlite3 (SQLite), gerçek zamanlı kanal için
-Socket.IO, kontrol arayüzü için React. Dış yüzeyin tek kaynağı
-API sözleşmesi; bir çelişkide sözleşme kazanır.
+Socket.IO, kontrol arayüzü için React. Dış yüzey (yollar, istek ve yanıt şekilleri, token
+claim'leri, socket olayı, hata kodları ve kontrol sırası) baştan sabit bir API sözleşmesine göre
+kuruldu; bir çelişkide sözleşme kazanır. Bu belgede ve karar günlüğünde geçen bölüm numaraları (§)
+sözleşmenin kendi bölümlerine işaret eder. Metni bu depoda yayımlanmıyor; davranışı OpenAPI
+belgesinde (`/docs`) ve testlerde görülür.
 
 Kurulum ve örnek istekler için [README.md](README.md), belgelerin haritası için
 [docs/README.md](docs/README.md), her kararın kısa "neden"i için
@@ -281,8 +284,8 @@ Her madde: seçim, neden, bedeli.
   bir süreç, başka süreçteki display'lere yayın yapamaz; yatay ölçekte Redis adapter gibi paylaşılan
   bir katman gerekir.
 - **Koşulsuz yayın, bağlanınca yayın yok.** Sözleşme her başarılı `POST /api/mode`'da olay istiyor;
-  bağlanınca kendiliğinden gönderilen bir olay, sözleşme testlerindeki "tam bir olay" ya da "hiç olay
-  yok" beklentilerini bozabilirdi. Bedeli: yeniden bağlanan bir display güncel modu kendiliğinden
+  bağlanınca kendiliğinden gönderilen bir olay, "tam bir olay" ya da "hiç olay yok" diye sayan
+  sözleşme testlerini bozabilirdi. Bedeli: yeniden bağlanan bir display güncel modu kendiliğinden
   almaz, onu sözleşme dışı `mode:get` ile sorması gerekir (N4). Simülatör her bağlanışta sorar;
   yalnız sözleşmedeki olayı bilen bir display ise bir sonraki `POST /api/mode`'u bekler.
 - **Kontrol kanalında veri yok, yalnız sinyal.** `/control` her değişiklikte yalnız `mode:changed`
@@ -312,8 +315,8 @@ Her madde: seçim, neden, bedeli.
 
 ## Sözleşme notları
 
-Sözleşme, bulunan çelişki ve belirsizliklerin DESIGN.md'de "sözleşme notu" olarak yazılmasını
-istiyor. Sözleşmedeki yollar, istek ve yanıt şekilleri değiştirilmedi; sözleşmenin sustuğu yerde
+Sözleşmede bulunan çelişki ve belirsizlikler burada "sözleşme notu" olarak yazılıdır.
+Sözleşmedeki yollar, istek ve yanıt şekilleri değiştirilmedi; sözleşmenin sustuğu yerde
 seçilen davranış ve gerekçesi aşağıda. Swagger açıklamalarında ve kodda geçen not numaraları
 bunlarla aynıdır.
 
@@ -389,7 +392,7 @@ id'sidir. Sözleşmedeki claim'ler değişmedi; revoke uygulanmadı.
 | Giriş hatası               | Bilinmeyen e-posta, yanlış şifre, silinmiş kullanıcı ve silinmiş firma için aynı `401` mesajı.                                                                                                                                                                                                                           | Hesap tahminini önler.                                                                                                 |
 | `error.message`            | Türkçe, kısa, kullanıcıya yönelik; `code` sözleşmedeki gibi. Eksik ve başka firmanın kaynağı aynı mesajı alır.                                                                                                                                                                                                           | Sözleşme örneği Türkçe; testler `code`'a bakar; i18n kapsam dışı.                                                      |
 | Beklenmeyen hata           | `500 INTERNAL_ERROR`, aynı zarf ve genel bir Türkçe mesaj; ayrıntı yalnız logda.                                                                                                                                                                                                                                         | Sözleşmede sunucu hatası kodu yok; zarfın şekli her yerde aynı kalır.                                                  |
-| Şifre değiştirme           | Endpoint yok.                                                                                                                                                                                                                                                                                                            | Sözleşmede yok (N7).                                                                                |
+| Şifre değiştirme           | Endpoint yok.                                                                                                                                                                                                                                                                                                            | Sözleşmede yok (N7).                                                                                                   |
 | `member` arayüzü           | Çalışanları ve modu salt okunur görür.                                                                                                                                                                                                                                                                                   | N7.                                                                                                                    |
 
 ### Sözleşmeye eklenenler
@@ -409,7 +412,7 @@ id'sidir. Sözleşmedeki claim'ler değişmedi; revoke uygulanmadı.
 Tasarım sorusu:
 
 > Sistem büyürse **database-per-tenant** modeline geçiş ne zaman ve neden mantıklı olur? Bu
-> şema bu geçişi kolaylaştırıyor mu, zorlaştırıyor mu?
+> şema geçişi kolaylaştırıyor mu, zorlaştırıyor mu?
 
 Bugünkü ölçekte paylaşımlı veritabanı doğru varsayılan: tek şema, tek migration, yeni bir firma
 yalnız bir satır, izolasyon da yukarıda anlatılan yapıyla sağlanıyor.
@@ -617,7 +620,7 @@ satırıdır.
 ### Sözleşmeyle ilişkisi
 
 Yalnız ekleme. Uygulanırsa üç yol Swagger'da "(uzantı)" olarak işaretlenir. Sözleşmedeki display
-claim'leri ve display kanalı değişmez; `POST /api/display-tokens` elle token üretimi ve kabul
+claim'leri ve display kanalı değişmez; `POST /api/display-tokens` elle token üretimi ve sözleşme
 testleri için kalır.
 
 ### Uygulanırsa
@@ -632,43 +635,28 @@ testleri için kalır.
   ve tek teslim, eşzamanlı onay, onay ile teslim arasında silinen firma ve teslim edilen token'ın
   handshake'ten geçip onaylayan firmanın odasına girmesi.
 
-## Önceliklendirme
+## Kapsam ve sıralama
 
-Öncelikler: gerekçeli önceliklendirme, sözleşmeye
-birebir uyum (sözleşme testleri), yapısal tenant izolasyonu (ana odak), sızıntısız bir gerçek zamanlı
-kanal, temiz bir makinede tek komutla çalışma, anlamlı bir commit geçmişi ve sözleşme hatalarının
-bildirilmesi. İşler bu önceliklere göre üç gruba ayrıldı
-([blueprint/build-plan.md](blueprint/build-plan.md)):
+Öncelikler: sözleşmeye birebir uyum, yapısal tenant izolasyonu (ana odak), sızıntısız bir gerçek
+zamanlı kanal, temiz bir makinede tek komutla çalışma, anlamlı bir commit geçmişi ve sözleşme
+hatalarının bildirilmesi. İşler bu önceliklere göre üç gruba ayrıldı:
 
-- **P0, sözleşme çekirdeği (1-9):** sözleşme testlerinin doğrulayacağı her şey. Sıra bağımlılıklara
-  göre: önce şema ve seed (şema baştan kilitlendi, sonraki her şey ona dayanıyor), sonra hata zarfı
-  ve giriş, her isteğin ilk kapısı olan kimlik doğrulama ve firma yönetimi. Tenant scope katmanı,
-  onu kullanacak çalışan ve mod endpoint'lerinden önce yazıldı; böylece hiçbir tenant sorgusu bu
-  katman olmadan yazılmadı. Gerçek zamanlı kanal mod ve display token'ı hazır olunca geldi. P0'ı,
-  sözleşme testlerinin aynası olan izolasyon ve sözleşme test matrisi kapattı.
-- **P1, zorunlu teslimler (10-16):** Swagger, kontrol arayüzü, display simülatörü, tek komutla
+- **Çekirdek (1-9):** sözleşmenin sözünü verdiği her şey. Sıra bağımlılıklara göre: önce şema ve
+  seed (şema baştan kilitlendi, sonraki her şey ona dayanıyor), sonra hata zarfı ve giriş, her
+  isteğin ilk kapısı olan kimlik doğrulama ve firma yönetimi. Tenant scope katmanı, onu kullanacak
+  çalışan ve mod endpoint'lerinden önce yazıldı; böylece hiçbir tenant sorgusu bu katman olmadan
+  yazılmadı. Gerçek zamanlı kanal mod ve display token'ı hazır olunca geldi. Çekirdeği, izolasyon
+  ve sözleşme test matrisi kapattı.
+- **Zorunlu parçalar (10-16):** Swagger, kontrol arayüzü, display simülatörü, tek komutla
   çalışma ve README, bu belge ve mimari diyagram. Çekirdek testlerle doğrulanmadan başlanmadı.
-- **P2, bonus (17-19):** kontrol arayüzünde canlı mod, display'in güncel modu isteyebilmesi ve
-  cihaz eşleştirme akışının tasarımı (kod yok); yalnız P0 ve P1 yeşilken.
+- **Ek (17-19):** kontrol arayüzünde canlı mod, display'in güncel modu isteyebilmesi ve cihaz
+  eşleştirme akışının tasarımı (kod yok); yalnız çekirdek ve zorunlu parçalar yeşilken.
 
-Gerçekleşen (`git log --first-parent main`):
+Her özellik küçük, incelenmiş adımlarla ve adım başına bir commit'le yapıldı; her özellik `main`'e
+bir merge commit'iyle girdi (`git log --first-parent main`). İncelemelerde bulunan hatalar, bir
+sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
 
-- P0'ın dokuz maddesi 25.09 ile 27.09 13:38 arasında `main`'e girdi; ilk kontrol noktası
-  tetiklenmedi.
-- P1'in 10-14 maddeleri 27.09 akşamı ile 28.09 akşamı arasında bitti; README ve tek komutla
-  çalışma planın bir gün önünde tamamlandı.
-- Bu belge yazılırken (29.09 gecesi) P1'den yalnız bu belge ve mimari diyagram kalmıştı; P2
-  maddelerine başlanmamıştı.
-- Mimari diyagram 29.09'da, bu belgeden sonra eklendi; P1 böylece tamamlandı.
-- P2'nin 17. maddesi (kontrol arayüzünde canlı mod) 29.09'da yapıldı.
-- P2'nin 18. maddesi (display'in güncel modu `mode:get` ile isteyebilmesi) de 29.09'da yapıldı.
-- P2'nin 19. maddesi (cihaz eşleştirme) 29.09'da kod yazılmadan, yalnız bu belgede tasarım olarak
-  eklendi; P2 böylece tamamlandı.
-
-Her özellik küçük, incelenmiş adımlarla ve adım başına bir commit'le yapıldı. İncelemelerde bulunan
-hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
-
-## Daha fazla zamanım olsaydı
+## Sonraki adımlar
 
 - **Yatay ölçekleme:** Socket.IO için Redis adapter ve paylaşılan bir veritabanı sunucusu; birden
   fazla instance ancak böyle aynı firmanın display'lerine yayın yapabilir.
@@ -692,14 +680,12 @@ hatalar, bir sonraki özelliğe geçmeden ayrı `fix/` dallarında kapatıldı.
 
 - Bu projeyi baştan sona Claude Code ile birlikte yazdım: planlar, spec'ler, kod, testler ve
   belgeler, bu belge dahil.
-- İş, AI Blueprint iş akışıyla yürüdü: önce proje planı ve build planı, sonra her özellik için bir
-  spec. Spec onaylanınca özellik küçük adımlarla uygulandı; her adımı inceleyip onayladıktan sonra
-  commit ettim ve her özellik `main`'e bir merge commit'iyle girdi.
+- İş, her özellik için önce bir spec yazılarak yürüdü. Spec onaylanınca özellik küçük adımlarla
+  uygulandı; her adımı inceleyip onayladıktan sonra commit ettim ve her özellik `main`'e bir
+  merge commit'iyle girdi. Planlar ve spec'ler bu depoda yayımlanmıyor.
 - Kural: AI'ın yazdığı hiçbir şey, satır satır açıklayamadığım sürece commit edilmedi.
 - Özelliklerin çoğu kapanmadan önce ayrıca denetlendi (audit); hassas olanlarda, yazan oturumdan
-  bağımsız ve temiz bağlamlı bir inceleyici oturumu kodu bir kez daha gözden geçirdi. Bulgular ve
-  sonuçları özellik arşivlerinde, düzeltmeler ayrı `fix/` dallarındadır.
-- Commit'lerde AI imzası (`Co-Authored-By` gibi) yok; AI kullanımı bunun yerine burada ve
-  kayıtlarda açıkça belgelendi.
-- Kayıtlar: planlar, spec'ler ve inceleme bulguları [blueprint/](blueprint/) altında; AI kodlama
-  araçlarının çalışma talimatları [AGENTS.md](AGENTS.md) ve [CLAUDE.md](CLAUDE.md) dosyalarında.
+  bağımsız ve temiz bağlamlı bir inceleyici oturumu kodu bir kez daha gözden geçirdi. Bulunan
+  hatalar ayrı `fix/` dallarında düzeltildi.
+- Commit'lerde AI imzası (`Co-Authored-By` gibi) yok; AI kullanımı bunun yerine burada açıkça
+  belgelendi.

@@ -7,20 +7,16 @@ Kurulum ve çalıştırma için [ana README](../README.md) dosyasına bakın.
 
 1. [README](../README.md): servisi çalıştırın, seed hesaplarıyla giriş yapın, curl örneklerini
    deneyin.
-2. API sözleşmesi:
-   ne istendiği ve dış yüzeyin değişmez kuralları.
-3. [Mimari diyagram](architecture.png) ([draw.io kaynağı](architecture.drawio)): katmanlar,
+2. [Mimari diyagram](architecture.png) ([draw.io kaynağı](architecture.drawio)): katmanlar,
    tenant izolasyonunun uygulandığı noktalar (DESIGN.md'deki numaralarla), gerçek zamanlı kanal
    ve kontrol arayüzünün API'yi nasıl kullandığı, tek resimde.
-4. [DESIGN.md](../DESIGN.md): veri modeli, tenant izolasyonunun nerede uygulandığı, kimlik
+3. [DESIGN.md](../DESIGN.md): veri modeli, tenant izolasyonunun nerede uygulandığı, kimlik
    doğrulama, trade-off'lar, sözleşme notları, database-per-tenant cevabı, cihaz eşleştirme
-   tasarımı ve önceliklendirme.
-5. [Karar günlüğü](decisions.md) (İngilizce): her özellik kapanırken yazılan kısa "neden" notları.
-6. [Build plan](../blueprint/build-plan.md) ve
-   [tamamlanan özelliklerin spec'leri](../blueprint/history/features/) (İngilizce): işin hangi
-   sırayla, hangi adımlarla ve hangi testlerle yapıldığı. Commit geçmişi aynı sırayı izler; her
-   özellik `main` dalına bir merge commit'iyle girer (`git log --first-parent main`).
-7. Kod, bir isteğin yolunu izleyerek:
+   tasarımı ve kapsam.
+4. [Karar günlüğü](decisions.md) (İngilizce): her özellik kapanırken yazılan kısa "neden" notları.
+   Commit geçmişi aynı sırayı izler; her özellik `main` dalına bir merge commit'iyle girer
+   (`git log --first-parent main`).
+5. Kod, bir isteğin yolunu izleyerek:
    - [src/server/app.ts](../src/server/app.ts): HTTP pipeline'ı; kimlik doğrulama, yetki ve tenant
      kapılarının sırası
    - [src/server/http/authenticate.ts](../src/server/http/authenticate.ts): token doğrulama ve her
@@ -30,34 +26,19 @@ Kurulum ve çalıştırma için [ana README](../README.md) dosyasına bakın.
      yani tenant izolasyonunun uygulandığı yer
    - [src/server/realtime/](../src/server/realtime/): display handshake'i, firma odaları ve
      `mode-change` yayını
-8. [tests/isolation/](../tests/isolation/): izolasyonun kanıtı (firmalar arası erişim matrisi,
+6. [tests/isolation/](../tests/isolation/): izolasyonun kanıtı (firmalar arası erişim matrisi,
    token'ların geçersizleşmesi, socket sızıntısı).
 
 ## Nerede ne var
 
 ### Belgeler
 
-| Yol                                                                                        | İçerik                                                                                                                                                            |
-| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [README.md](../README.md)                                                                  | Kurulum, tek komutla çalıştırma, seed hesapları, curl örnekleri, test komutu                                                                                      |
-| [DESIGN.md](../DESIGN.md)                                                                  | Tasarım: veri modeli, izolasyon, kimlik doğrulama, trade-off'lar, sözleşme notları, database-per-tenant, cihaz eşleştirme tasarımı, önceliklendirme, AI kullanımı |
-| [docs/architecture.png](architecture.png), [docs/architecture.drawio](architecture.drawio) | Mimari diyagram ve draw.io kaynağı: katmanlar, izolasyon noktaları (DESIGN.md'deki numaralarla), gerçek zamanlı kanal, arayüzün API'yi kullanışı                  |
-| [docs/decisions.md](decisions.md)                                                          | Karar günlüğü: özellik bazında tarihli "neden" notları (İngilizce)                                                                                                |
-
-### Planlar ve spec'ler
-
-Proje AI Blueprint iş akışıyla geliştirildi: her özellik önce bir spec'e dönüştü, küçük ve
-incelenmiş adımlarla uygulandı, sonra arşivlendi. Bu dosyalar İngilizcedir.
-
-| Yol                                                                               | İçerik                                                                                    |
-| --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [blueprint/project-plan.md](../blueprint/project-plan.md)                         | Proje planı: problem, kullanıcılar, veri modeli, teknoloji, sözleşme yorumları, program   |
-| [blueprint/build-plan.md](../blueprint/build-plan.md)                             | Özellik listesi, öncelikler (P0, P1, P2) ve tahmini süreler                               |
-| [blueprint/context/project-overview.md](../blueprint/context/project-overview.md) | İki planın özeti; spec'ler buradan yazıldı                                                |
-| [blueprint/context/coding-standards.md](../blueprint/context/coding-standards.md) | Kod, test ve yazım standartları                                                           |
-| [blueprint/history/features/](../blueprint/history/features/)                     | Tamamlanan her özelliğin spec'i: kapsam, adımlar, testler, kanıtlar ve inceleme bulguları |
-| [blueprint/history/fixes/](../blueprint/history/fixes/)                           | Özellikler dışındaki düzeltmelerin kayıtları                                              |
-| [AGENTS.md](../AGENTS.md), [CLAUDE.md](../CLAUDE.md)                              | AI kodlama araçlarının çalışma talimatları                                                |
+| Yol                                                                                        | İçerik                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [README.md](../README.md)                                                                  | Kurulum, tek komutla çalıştırma, seed hesapları, curl örnekleri, test komutu                                                                             |
+| [DESIGN.md](../DESIGN.md)                                                                  | Tasarım: veri modeli, izolasyon, kimlik doğrulama, trade-off'lar, sözleşme notları, database-per-tenant, cihaz eşleştirme tasarımı, kapsam, AI kullanımı |
+| [docs/architecture.png](architecture.png), [docs/architecture.drawio](architecture.drawio) | Mimari diyagram ve draw.io kaynağı: katmanlar, izolasyon noktaları (DESIGN.md'deki numaralarla), gerçek zamanlı kanal, arayüzün API'yi kullanışı         |
+| [docs/decisions.md](decisions.md)                                                          | Karar günlüğü: özellik bazında tarihli "neden" notları (İngilizce)                                                                                       |
 
 ### Kod
 
