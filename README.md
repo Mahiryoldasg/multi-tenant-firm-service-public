@@ -1,5 +1,7 @@
 # Multi-Tenant Firma & Çalışan Yönetim Servisi
 
+[![Verify](https://github.com/Mahiryoldasg/multi-tenant-firm-service-public/actions/workflows/verify.yml/badge.svg)](https://github.com/Mahiryoldasg/multi-tenant-firm-service-public/actions/workflows/verify.yml)
+
 Birden çok firmanın (tenant) tek bir serviste, birbirinden tamamen yalıtılmış olarak yönetildiği
 firma ve çalışan yönetim servisi. Platform admin firmaları yönetir; firma admin'i kendi firmasının
 çalışanlarını ve aktif modunu yönetir; display istemcileri Socket.IO üzerinden yalnız kendi
